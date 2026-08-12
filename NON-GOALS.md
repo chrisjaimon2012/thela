@@ -47,6 +47,17 @@ model should not make an adapter impossible later. That is all.
 **Multi-currency, marketplaces, B2B pricing, subscriptions, POS,
 multi-warehouse.** Each is a different product.
 
+**SMS forwarding from an Android phone.** Technically the most universal channel — RBI *mandates* SMS
+transaction alerts at every bank (RBI/2017-18/15 para 5) while only *permitting* email, which is exactly
+why email coverage is patchy and SMS is not. An old handset running a forwarder app would work with any
+bank, with no GST, no current account and nobody's permission.
+
+Rejected anyway, because it makes a phone load-bearing. It must stay charged, in signal, unlocked, and
+exempt from battery optimisation, forever — and when it silently stops, the failure looks exactly like
+"no customer has paid today". A shop's payment verification should not depend on a device someone might
+pick up to make a call. Bank alert emails and statements are ordinary bank services; a phone taped to a
+wall is a workaround wearing a costume.
+
 ## Deliberately unsupported
 
 **Shops without a bank that emails credit alerts.** The automatic payment
