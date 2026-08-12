@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none"
+     stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <title>thela</title>
+  <!--
+    A ठेला: flatbed deck, two spoked wheels, one handle. Drawn with
+    currentColor and no fills so it inherits the page's ink in either theme
+    and stays legible at 16px, where anything finer turns to mush.
+  -->
+  <path d="M4 13h22" />
+  <path d="M4 13v3h22v-3" />
+  <path d="M26 14l4-3" />
+  <circle cx="10" cy="23" r="5" />
+  <circle cx="22" cy="23" r="5" />
+  <path d="M10 20v6M7 23h6" stroke-width="1.4" />
+  <path d="M22 20v6M19 23h6" stroke-width="1.4" />
+</svg>
