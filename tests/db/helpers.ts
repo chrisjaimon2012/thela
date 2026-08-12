@@ -1,4 +1,7 @@
-import { env } from 'cloudflare:test';
+// `cloudflare:workers`, not `cloudflare:test` — the latter's `env` is
+// deprecated in favour of the same import the application code uses, which is
+// also the point: the tests reach for bindings exactly as the Worker does.
+import { env } from 'cloudflare:workers';
 import migration from '../../migrations/0001_init.sql?raw';
 
 /**
