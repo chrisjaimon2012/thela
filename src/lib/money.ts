@@ -52,6 +52,28 @@ export function formatMoney(
   }).format(minor / 10 ** exponent);
 }
 
+/**
+ * Bind a formatter to the shop's own currency, locale and exponent.
+ *
+ * Pages call `price(minor)` and never see a currency code. That is deliberate:
+ * a template that hardcodes `₹` or passes `'INR'` is a template a Lyon studio
+ * has to fork, and the first version of this codebase did exactly that in two
+ * places (see the `<p class="price">₹{formatMoney(...)}` that shipped broken).
+ */
+export function priceFormatter(s: {
+  currency: string;
+  locale: string;
+  exponent: number;
+}): (minor: Minor) => string {
+  const fmt = new Intl.NumberFormat(s.locale, {
+    style: 'currency',
+    currency: s.currency,
+    minimumFractionDigits: s.exponent,
+    maximumFractionDigits: s.exponent,
+  });
+  return (minor) => fmt.format(minor / 10 ** s.exponent);
+}
+
 /** Digits only, for places where the currency symbol is rendered separately. */
 export function formatAmount(minor: Minor, locale = 'en-IN', exponent = 2): string {
   return new Intl.NumberFormat(locale, {

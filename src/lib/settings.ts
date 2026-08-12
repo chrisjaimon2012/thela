@@ -103,6 +103,20 @@ export async function loadSettings(db: D1Database): Promise<Settings> {
   return s;
 }
 
+/**
+ * The shop's country, spelled the way its own customers spell it — "India" for
+ * an en-IN shop, "Inde" for fr-FR. `Intl.DisplayNames` is in workerd, so this
+ * costs nothing and saves us shipping a country table.
+ */
+export function countryName(s: Settings): string {
+  try {
+    return new Intl.DisplayNames([s.locale], { type: 'region' }).of(s.country) ?? s.country;
+  } catch {
+    // An unknown locale or a malformed country code must not take the page down.
+    return s.country;
+  }
+}
+
 /** Absolute URL for a stored media key. Empty base means media is not configured yet. */
 export const mediaUrl = (s: Settings, key: string | null | undefined): string | null =>
   key && s.mediaBaseUrl ? `${s.mediaBaseUrl}/${key}` : null;

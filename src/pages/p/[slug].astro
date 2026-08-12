@@ -1,8 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getProduct } from '../../lib/catalogue';
-import { loadSettings, mediaUrl } from '../../lib/settings';
-import { formatMoney } from '../../lib/money';
+import { loadSettings, mediaUrl, countryName } from '../../lib/settings';
+import { priceFormatter } from '../../lib/money';
 import { env } from 'cloudflare:workers';
 
 const { slug } = Astro.params;
@@ -12,18 +12,16 @@ const product = slug ? await getProduct(db, slug) : null;
 if (!product) return new Response('Not found', { status: 404 });
 
 const settings = await loadSettings(db);
-
-// Options are modelled as two free-standing axes (size, colour) so the picker
-// can be two selects rather than a combinatorial list. Preserve first-seen
-// order: the shopkeeper's ordering is deliberate.
-const axis = (pick: (v: (typeof product.variants)[number]) => string | null) => [
-  ...new Set(product.variants.map(pick).filter((x): x is string => Boolean(x))),
-];
-const sizes = axis((v) => v.option1);
-const colours = axis((v) => v.option2);
+const price = priceFormatter(settings);
 
 const cheapest = Math.min(...product.variants.map((v) => v.priceMinor));
 const anyAvailable = product.variants.some((v) => v.available);
+const parcel = product.variants.find((v) => v.lenMm && v.widMm);
+
+// Legal Metrology (Packaged Commodities) Rules 2011 rule 6(10) is an Indian
+// statute, so its declarations render only for an Indian shop. A Lyon studio
+// showing "Net quantity 1 N" would be noise, not compliance.
+const showPackagedDeclarations = settings.country === 'IN';
 
 Astro.response.headers.set(
   'Cache-Control',
@@ -51,7 +49,7 @@ Astro.response.headers.set(
 
     <div class="measure">
       <h1 style="margin:0 0 .35rem;font-size:1.6rem;letter-spacing:-.015em">{product.title}</h1>
-      <p class="price" style="font-size:1.15rem;margin:0 0 1rem">₹{formatMoney(cheapest)}</p>
+      <p class="price" style="font-size:1.15rem;margin:0 0 1rem">{price(cheapest)}</p>
 
       {product.summary && <p class="muted">{product.summary}</p>}
 
@@ -59,24 +57,18 @@ Astro.response.headers.set(
         <form method="POST" action="/api/cart/add" style="display:grid;gap:.75rem;max-width:22rem;margin:1.5rem 0">
           <input type="hidden" name="slug" value={product.slug} />
 
-          {sizes.length > 1 && (
+          {/*
+            One select per axis the vendor declared, labelled with their own
+            word for it. Nothing here knows what a frame or a sleeve length is.
+          */}
+          {product.axes.map((axis) => (
             <label>
-              Size
-              <select name="option1" required style="display:block;width:100%;margin-top:.25rem">
-                {sizes.map((s) => <option value={s}>{s}</option>)}
+              {axis.name}
+              <select name={`option${axis.position}`} required style="display:block;width:100%;margin-top:.25rem">
+                {axis.values.map((v) => <option value={v}>{v}</option>)}
               </select>
             </label>
-          )}
-          {colours.length > 1 && (
-            <label>
-              Frame
-              <select name="option2" required style="display:block;width:100%;margin-top:.25rem">
-                {colours.map((c) => <option value={c}>{c}</option>)}
-              </select>
-            </label>
-          )}
-          {sizes.length <= 1 && <input type="hidden" name="option1" value={sizes[0] ?? ''} />}
-          {colours.length <= 1 && <input type="hidden" name="option2" value={colours[0] ?? ''} />}
+          ))}
 
           <button type="submit">Add to cart</button>
         </form>
@@ -88,24 +80,25 @@ Astro.response.headers.set(
         <div class="muted" style="white-space:pre-wrap">{product.bodyMd}</div>
       )}
 
-      <!--
-        Legal Metrology (Packaged Commodities) Rules 2011 rule 6(10) requires
-        the packaged-commodity declarations to be mirrored on the product page.
-        These are structured fields on the product, not prose, so they render
-        consistently and cannot be forgotten in a description.
-      -->
       <dl style="margin-top:2rem;font-size:.87rem;display:grid;grid-template-columns:auto 1fr;gap:.3rem 1rem">
-        {product.variants[0] && (
+        {showPackagedDeclarations && (
           <>
             <dt class="muted">Net quantity</dt><dd style="margin:0">1 N</dd>
-            <dt class="muted">Dimensions</dt>
-            <dd style="margin:0">
-              {product.variants[0].lenMm / 10} × {product.variants[0].widMm / 10} cm
-            </dd>
+            {parcel && (
+              <>
+                <dt class="muted">Dimensions</dt>
+                <dd style="margin:0">{parcel.lenMm / 10} × {parcel.widMm / 10} cm</dd>
+              </>
+            )}
           </>
         )}
         {settings.legalName && (<><dt class="muted">Packed by</dt><dd style="margin:0">{settings.legalName}</dd></>)}
-        <dt class="muted">Country of origin</dt><dd style="margin:0">India</dd>
+        {settings.country && (
+          <>
+            <dt class="muted">Country of origin</dt>
+            <dd style="margin:0">{countryName(settings)}</dd>
+          </>
+        )}
         {settings.supportEmail && (<><dt class="muted">Consumer care</dt><dd style="margin:0">{settings.supportEmail}</dd></>)}
       </dl>
     </div>

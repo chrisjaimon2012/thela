@@ -2,11 +2,12 @@
 import Base from '../layouts/Base.astro';
 import { listProducts } from '../lib/catalogue';
 import { loadSettings, mediaUrl } from '../lib/settings';
-import { formatMoney } from '../lib/money';
+import { priceFormatter } from '../lib/money';
 import { env } from 'cloudflare:workers';
 
 const db = env.DB;
 const [products, settings] = await Promise.all([listProducts(db), loadSettings(db)]);
+const price = priceFormatter(settings);
 
 // Cheap to render, changes only when the shopkeeper edits something. Let the
 // edge serve it and revalidate in the background so a price change is live in
@@ -33,7 +34,7 @@ Astro.response.headers.set(
           </div>
           <h3>{p.title}</h3>
           <p class="price muted">
-            {products.length > 0 && `₹${formatMoney(p.fromMinor)}`}
+            {price(p.fromMinor)}
             {!p.anyAvailable && <span class="sold-out"> · sold out</span>}
           </p>
         </a>
