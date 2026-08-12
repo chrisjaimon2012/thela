@@ -32,6 +32,21 @@ export interface Variant {
   available: boolean;
 }
 
+/**
+ * One option axis, ready to render as one `<select>`.
+ *
+ * The name is the vendor's — "Size", "Taille", "Frame", "Manches" — and the
+ * values are the distinct ones their variants actually use, in the order the
+ * vendor put them in. Computing this here rather than in the page is what lets
+ * the same template serve a two-axis framer and a three-axis print studio.
+ */
+export interface OptionAxis {
+  /** 1, 2 or 3 — which `option_N` column this axis reads. */
+  position: number;
+  name: string;
+  values: string[];
+}
+
 export interface ProductDetail {
   id: string;
   slug: string;
@@ -39,8 +54,8 @@ export interface ProductDetail {
   summary: string | null;
   bodyMd: string | null;
   meta: Record<string, unknown>;
-  /** The vendor's own axis names, in order: ["Size", "Colour"]. Empty = no picker. */
-  optionNames: string[];
+  /** Empty for a product with no options, which has exactly one variant. */
+  axes: OptionAxis[];
   variants: Variant[];
   imageKeys: string[];
 }
@@ -114,7 +129,7 @@ export async function getProduct(
       .bind(product.id),
     db
       .prepare(
-        `SELECT name FROM product_option WHERE product_id = ?1 ORDER BY position`,
+        `SELECT position, name FROM product_option WHERE product_id = ?1 ORDER BY position`,
       )
       .bind(product.id),
   ]);
@@ -123,6 +138,11 @@ export async function getProduct(
   // rather than destructuring so a shape change is a cast error, not a crash.
   const rows = <T,>(i: number): T[] => (batch[i]?.results ?? []) as unknown as T[];
 
+  const variants = rows<Omit<Variant, 'available'> & { available: number }>(0).map((v) => ({
+    ...v,
+    available: v.available === 1,
+  }));
+
   return {
     id: product.id,
     slug: product.slug,
@@ -130,13 +150,42 @@ export async function getProduct(
     summary: product.summary,
     bodyMd: product.bodyMd,
     meta: safeJson(product.metaJson),
-    optionNames: rows<{ name: string }>(2).map((o) => o.name),
-    variants: rows<Omit<Variant, 'available'> & { available: number }>(0).map((v) => ({
-      ...v,
-      available: v.available === 1,
-    })),
+    axes: buildAxes(rows<{ position: number; name: string }>(2), variants),
+    variants,
     imageKeys: rows<{ r2_key: string }>(1).map((i) => i.r2_key),
   };
+}
+
+/**
+ * Turn the declared axes plus the variant rows into pickers.
+ *
+ * An axis with fewer than two distinct values is dropped: offering a choice of
+ * one is noise, and the checkout takes the value from the variant anyway. An
+ * axis a vendor declared but never populated disappears the same way, which is
+ * the forgiving behaviour — a half-finished product still sells.
+ */
+function buildAxes(
+  declared: { position: number; name: string }[],
+  variants: Variant[],
+): OptionAxis[] {
+  const valueAt = (v: Variant, position: number): string | null =>
+    position === 1 ? v.option1 : position === 2 ? v.option2 : v.option3;
+
+  return declared
+    .map((d) => ({
+      position: d.position,
+      name: d.name,
+      // Set preserves insertion order, so this is the vendor's own ordering by
+      // variant position rather than something alphabetical they did not ask for.
+      values: [
+        ...new Set(
+          variants
+            .map((v) => valueAt(v, d.position))
+            .filter((x): x is string => Boolean(x)),
+        ),
+      ],
+    }))
+    .filter((a) => a.values.length > 1);
 }
 
 /** Product `meta_json` is shopkeeper-editable, so a malformed value must not 500 the page. */

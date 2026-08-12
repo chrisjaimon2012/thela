@@ -3,37 +3,49 @@
 
 /**
  * Bindings declared in wrangler.jsonc, plus secrets set with
- * `wrangler secret put`. Kept hand-written rather than generated: it is short,
- * it is the canonical list of everything the shop can touch, and a generated
- * file would not carry the comments explaining why each one exists.
+ * `wrangler secret put`.
+ *
+ * Hand-written rather than `wrangler types`-generated: it is short, it is the
+ * canonical list of everything the shop can touch, and a generated file would
+ * not carry the comments explaining why each one exists.
+ *
+ * It MUST be declared inside `namespace Cloudflare`. `import { env } from
+ * 'cloudflare:workers'` is typed as `Cloudflare.Env`, which workers-types
+ * declares empty and expects projects to extend by declaration merging. A
+ * bare global `interface Env` compiles perfectly and types nothing — every
+ * `env.DB` silently becomes an error nobody sees until `astro check` runs.
  */
-interface Env {
-  /** The ledger. Sole source of truth for products, stock and orders. */
-  DB: D1Database;
-  /** Product photography. Served from an R2 custom domain, never through the Worker. */
-  MEDIA: R2Bucket;
-  /** Generated shipping labels. */
-  LABELS: R2Bucket;
+declare namespace Cloudflare {
+  interface Env {
+    /** The ledger. Sole source of truth for products, stock and orders. */
+    DB: D1Database;
+    /** Product photography. Served from an R2 custom domain, never through the Worker. */
+    MEDIA: R2Bucket;
+    /** Generated shipping labels. */
+    LABELS: R2Bucket;
 
-  CHECKOUT_LIMIT: RateLimit;
-  UTR_LIMIT: RateLimit;
+    CHECKOUT_LIMIT: RateLimit;
+    UTR_LIMIT: RateLimit;
 
-  SHOP_ENV: string;
-  /** Address the merchant's bank sends credit alerts to. */
-  BANK_ALERT_ADDRESS: string;
-  /** Where the Email Worker forwards a copy, so the account holder keeps sight of their own mail. */
-  BANK_ALERT_FORWARD_TO?: string;
+    SHOP_ENV: string;
+    /** Address the merchant's bank sends credit alerts to. */
+    BANK_ALERT_ADDRESS: string;
+    /** Where the Email Worker forwards a copy, so the account holder keeps sight of their own mail. */
+    BANK_ALERT_FORWARD_TO?: string;
 
-  // Secrets — never in wrangler.jsonc, never in the repo.
-  ADMIN_SETUP_TOKEN?: string;
-  SESSION_SECRET?: string;
-  DELHIVERY_TOKEN?: string;
-  DELHIVERY_BASE?: string;
-  RESEND_API_KEY?: string;
-  ORDER_FROM_EMAIL?: string;
-  ORDER_REPLY_TO?: string;
-  OPS_ALERT_EMAIL?: string;
+    // Secrets — never in wrangler.jsonc, never in the repo.
+    ADMIN_SETUP_TOKEN?: string;
+    SESSION_SECRET?: string;
+    DELHIVERY_TOKEN?: string;
+    DELHIVERY_BASE?: string;
+    RESEND_API_KEY?: string;
+    ORDER_FROM_EMAIL?: string;
+    ORDER_REPLY_TO?: string;
+    OPS_ALERT_EMAIL?: string;
+  }
 }
+
+type Env = Cloudflare.Env;
 
 type Runtime = import('@astrojs/cloudflare').Runtime<Env>;
 
