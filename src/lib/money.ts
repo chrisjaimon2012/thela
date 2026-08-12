@@ -11,7 +11,7 @@
  * allocation correct under concurrency without any locking.
  */
 
-import type { Paise } from './types';
+import type { Paise } from './payments/types';
 
 export const PAISE_SLOTS = 100;
 

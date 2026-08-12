@@ -1,0 +1,42 @@
+/// <reference types="astro/client" />
+/// <reference types="@cloudflare/workers-types" />
+
+/**
+ * Bindings declared in wrangler.jsonc, plus secrets set with
+ * `wrangler secret put`. Kept hand-written rather than generated: it is short,
+ * it is the canonical list of everything the shop can touch, and a generated
+ * file would not carry the comments explaining why each one exists.
+ */
+interface Env {
+  /** The ledger. Sole source of truth for products, stock and orders. */
+  DB: D1Database;
+  /** Product photography. Served from an R2 custom domain, never through the Worker. */
+  MEDIA: R2Bucket;
+  /** Generated shipping labels. */
+  LABELS: R2Bucket;
+
+  CHECKOUT_LIMIT: RateLimit;
+  UTR_LIMIT: RateLimit;
+
+  SHOP_ENV: string;
+  /** Address the merchant's bank sends credit alerts to. */
+  BANK_ALERT_ADDRESS: string;
+  /** Where the Email Worker forwards a copy, so the account holder keeps sight of their own mail. */
+  BANK_ALERT_FORWARD_TO?: string;
+
+  // Secrets — never in wrangler.jsonc, never in the repo.
+  ADMIN_SETUP_TOKEN?: string;
+  SESSION_SECRET?: string;
+  DELHIVERY_TOKEN?: string;
+  DELHIVERY_BASE?: string;
+  RESEND_API_KEY?: string;
+  ORDER_FROM_EMAIL?: string;
+  ORDER_REPLY_TO?: string;
+  OPS_ALERT_EMAIL?: string;
+}
+
+type Runtime = import('@astrojs/cloudflare').Runtime<Env>;
+
+declare namespace App {
+  interface Locals extends Runtime {}
+}

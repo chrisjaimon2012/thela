@@ -7,7 +7,7 @@
  */
 
 import doc from './parsers.json';
-import { parseINR } from '../payments/amount';
+import { parseINR } from '../money';
 import type { Confidence, Paise } from '../payments/types';
 
 export type Trust = 'verified' | 'unverified' | 'unsuitable' | 'unreliable';
