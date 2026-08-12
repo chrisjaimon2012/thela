@@ -66,19 +66,13 @@
     { "name": "UTR_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
   ],
 
-  "triggers": {
-    "crons": [
-      // Release stock held by orders that were never paid, which also frees
-      // their paise slot for reuse.
-      "*/5 * * * *",
-      // The dead-man's switch. Counts orders paid-but-undispatched, alerts
-      // that arrived but did not parse, and a carrier wallet running low.
-      // Without this, "zero maintenance" means "unmonitored".
-      "0 */6 * * *",
-      // Nightly: sync carrier serviceability, reconcile shipping charges.
-      "30 19 * * *"
-    ]
-  },
+  // NO CRONS HERE. `scheduled` cannot be attached to the storefront: the Astro
+  // adapter builds its Worker entry as `{ fetch: handle }` from a virtual
+  // module we do not own, so there is nowhere to put the handler. A cron
+  // declared here would fire against a Worker that cannot answer it.
+  //
+  // They live in workers/ops/wrangler.jsonc alongside the code that runs them.
+  // See ADR-0023.
 
   "vars": {
     "SHOP_ENV": "production",

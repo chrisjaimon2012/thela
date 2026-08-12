@@ -1,0 +1,54 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "thela-ops",
+  "main": "./index.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": { "enabled": true },
+
+  // No routes and no workers.dev URL. This Worker answers no HTTP request at
+  // all — it exists for `email` and `scheduled` — so giving it a public
+  // hostname would only be an attack surface with nothing behind it.
+  "workers_dev": false,
+
+  // THE SAME DATABASE AS THE STOREFRONT. Not a copy, not a replica.
+  //
+  // `database_id` must be filled in with the id of the database the storefront
+  // created; there is exactly one, and both Workers bind it. Getting this wrong
+  // is quiet and expensive: payments would confirm against an empty database
+  // while the shop sat waiting.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "thela",
+      "database_id": "local-dev-placeholder"
+    }
+  ],
+
+  "triggers": {
+    "crons": [
+      // Release stock and the minor-unit slot held by orders nobody paid for.
+      // There are only 100 slots per amount per currency, so this is what stops
+      // a busy shop reporting "sold out" with a full shelf.
+      "*/5 * * * *",
+
+      // The dead man's switch. Counts paid-but-undispatched orders, alerts that
+      // arrived and did not parse, credits that matched nothing, and how long
+      // it has been since a payment last confirmed. Without it, "zero
+      // maintenance" and "unmonitored" are the same system.
+      "0 */6 * * *"
+    ]
+  },
+
+  "vars": {
+    // Where a copy of every bank alert is forwarded, so the account holder
+    // keeps sight of their own mail. Several banks — HDFC confirmed — have no
+    // alerts-only address, so routing alerts at the shop domain would otherwise
+    // swallow statements and service notices too.
+    "BANK_ALERT_FORWARD_TO": ""
+  }
+
+  // Secrets, set with `wrangler secret put --config workers/ops/wrangler.jsonc`:
+  //   OPS_ALERT_EMAIL   where the dead man's switch shouts
+}

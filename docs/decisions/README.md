@@ -31,3 +31,4 @@ the old `Superseded by ADR-XXXX`. The value is the trail, not the tidiness.
 | [0020](0020-customization-surface.md) | One accent, computed contrast — what earns a setting | Proposed |
 | [0021](0021-install-by-button-update-by-pull-request.md) | Install by button, update by pull request | Accepted |
 | [0022](0022-passkeys-because-a-password-costs-too-much-cpu.md) | Passkeys for the admin — a password costs too much CPU | Accepted |
+| [0023](0023-a-second-worker-for-email-and-cron.md) | A second Worker for email and cron | Accepted |

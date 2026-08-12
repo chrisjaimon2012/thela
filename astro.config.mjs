@@ -23,6 +23,15 @@ export default defineConfig({
     // custom domain. Passthrough keeps the adapter from demanding an IMAGES
     // binding that would not exist on a free-tier deployment.
     imageService: 'passthrough',
+
+    // The ops Worker: `email` and `scheduled`, which the generated storefront
+    // entry has nowhere to put. The adapter builds its entry as
+    // `{ fetch: handle }` from a virtual module we do not own, so an auxiliary
+    // Worker is the sanctioned place for any other handler — and separating
+    // them means a storefront deploy cannot break payment ingest.
+    //
+    // See workers/ops/index.ts for the full reasoning.
+    auxiliaryWorkers: [{ configPath: './workers/ops/wrangler.jsonc' }],
   }),
 
   // Astro's session store would want a KV namespace binding. The cart is a
