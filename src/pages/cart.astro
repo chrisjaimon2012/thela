@@ -1,0 +1,125 @@
+---
+import Base from '../layouts/Base.astro';
+import { readCart, MAX_QTY } from '../lib/cart';
+import { mediaUrl } from '../lib/settings';
+import { priceFormatter } from '../lib/money';
+import { env } from 'cloudflare:workers';
+
+const settings = Astro.locals.settings;
+const price = priceFormatter(settings);
+const cart = await readCart(env.DB, Astro.cookies);
+
+// Which add-to-cart went wrong, if any. Set by /api/cart/add on redirect.
+const problem = Astro.url.searchParams.get('e');
+
+// A cart is one customer's, and it changes. Never let a CDN hold it.
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+---
+
+<Base title="Cart">
+  <div class="measure" style="padding:2rem 0">
+    <h1 style="margin:0 0 1.5rem;font-size:1.4rem;letter-spacing:-.015em">Cart</h1>
+
+    {problem === 'gone' && (
+      <p class="notice">
+        That option is no longer available. The shop may have changed since you
+        opened the page.
+      </p>
+    )}
+    {problem === 'soldout' && <p class="notice">That option just sold out.</p>}
+
+    {cart.dropped && (
+      <p class="notice">
+        Something in your cart is no longer sold and has been removed.
+      </p>
+    )}
+
+    {cart.lines.length === 0 ? (
+      <p class="muted">
+        Your cart is empty. <a href="/">Have a look around.</a>
+      </p>
+    ) : (
+      <>
+        <ul style="list-style:none;margin:0;padding:0;display:grid;gap:1.25rem">
+          {cart.lines.map((line) => (
+            <li style="display:grid;grid-template-columns:64px 1fr auto;gap:1rem;align-items:start">
+              <a href={`/p/${line.slug}`} class="thumb" style="width:64px;aspect-ratio:2/3;background:var(--line);border-radius:var(--radius);overflow:hidden;display:block">
+                {mediaUrl(settings, line.imageKey) && (
+                  <img src={mediaUrl(settings, line.imageKey)} alt="" width="64" height="96" style="width:100%;height:100%;object-fit:cover" />
+                )}
+              </a>
+
+              <div>
+                <a href={`/p/${line.slug}`} style="text-decoration:none;font-weight:600">{line.title}</a>
+                {line.optionLabel && <div class="muted" style="font-size:.87rem">{line.optionLabel}</div>}
+
+                {!line.available && <div class="sold-out">Sold out — remove to continue.</div>}
+                {line.available && line.maxQty !== null && line.qty > line.maxQty && (
+                  <div class="sold-out">Only {line.maxQty} left — reduce the quantity to continue.</div>
+                )}
+
+                {/*
+                  One form per row. Without JavaScript the button pressed is the
+                  only signal of intent, so quantity and remove submit separately
+                  to the same endpoint.
+                */}
+                <form method="POST" action="/api/cart/update" style="display:flex;gap:.5rem;align-items:center;margin-top:.5rem">
+                  <input type="hidden" name="variantId" value={line.variantId} />
+                  <label class="muted" style="font-size:.87rem">
+                    Qty
+                    <input
+                      type="number" name="qty" value={line.qty}
+                      min="1" max={line.maxQty ?? MAX_QTY} inputmode="numeric"
+                      style="width:4.5rem;margin-left:.4rem"
+                    />
+                  </label>
+                  <button type="submit" class="link-btn">Update</button>
+                  <button type="submit" name="remove" value="1" class="link-btn">Remove</button>
+                </form>
+              </div>
+
+              <div class="price" style="text-align:right;white-space:nowrap">
+                {price(line.lineMinor)}
+                {line.qty > 1 && (
+                  <div class="muted" style="font-size:.82rem">{price(line.unitMinor)} each</div>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <div style="border-top:1px solid var(--line);margin-top:1.75rem;padding-top:1rem;display:flex;justify-content:space-between;align-items:baseline">
+          <strong>Subtotal</strong>
+          <strong class="price">{price(cart.subtotalMinor)}</strong>
+        </div>
+        <p class="muted" style="font-size:.87rem;margin:.35rem 0 1.5rem">
+          Delivery {settings.taxRegistered ? `and ${settings.taxLabel} are` : 'is'} worked out at checkout.
+        </p>
+
+        {cart.problems.length > 0 ? (
+          <p class="notice">Fix the lines marked above to continue.</p>
+        ) : (
+          <a class="btn" href="/checkout">Checkout</a>
+        )}
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .notice {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: .7rem .9rem;
+    margin: 0 0 1.25rem;
+    font-size: .92rem;
+  }
+  /* A submit button that reads as a link. Still a button, so it still works
+     without JavaScript and is still reachable by keyboard. */
+  .link-btn {
+    background: none; border: 0; color: var(--ink-2);
+    padding: 0 .2rem; font-size: .87rem; text-decoration: underline;
+  }
+  .link-btn:hover { color: var(--ink); }
+</style>

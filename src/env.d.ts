@@ -19,10 +19,18 @@ declare namespace Cloudflare {
   interface Env {
     /** The ledger. Sole source of truth for products, stock and orders. */
     DB: D1Database;
-    /** Product photography. Served from an R2 custom domain, never through the Worker. */
-    MEDIA: R2Bucket;
-    /** Generated shipping labels. */
-    LABELS: R2Bucket;
+    /**
+     * Product photography, served from an R2 custom domain and never through
+     * the Worker.
+     *
+     * Optional, and every use site must handle its absence. R2 needs a payment
+     * method on the account before a bucket can be created, so a default
+     * install has none — see the long comment in wrangler.jsonc. A shop with no
+     * MEDIA still sells; it just has no pictures until the owner opts in.
+     */
+    MEDIA?: R2Bucket;
+    /** Generated shipping labels. Optional for the same reason as MEDIA. */
+    LABELS?: R2Bucket;
 
     CHECKOUT_LIMIT: RateLimit;
     UTR_LIMIT: RateLimit;
@@ -50,5 +58,8 @@ type Env = Cloudflare.Env;
 type Runtime = import('@astrojs/cloudflare').Runtime<Env>;
 
 declare namespace App {
-  interface Locals extends Runtime {}
+  interface Locals extends Runtime {
+    /** Loaded once per request by `src/middleware.ts`. Never read the table again. */
+    settings: import('./lib/settings').Settings;
+  }
 }

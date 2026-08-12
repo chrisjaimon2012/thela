@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getProduct } from '../../lib/catalogue';
-import { loadSettings, mediaUrl, countryName } from '../../lib/settings';
+import { mediaUrl, countryName } from '../../lib/settings';
 import { priceFormatter } from '../../lib/money';
 import { env } from 'cloudflare:workers';
 
@@ -11,7 +11,7 @@ const db = env.DB;
 const product = slug ? await getProduct(db, slug) : null;
 if (!product) return new Response('Not found', { status: 404 });
 
-const settings = await loadSettings(db);
+const settings = Astro.locals.settings;
 const price = priceFormatter(settings);
 
 const cheapest = Math.min(...product.variants.map((v) => v.priceMinor));

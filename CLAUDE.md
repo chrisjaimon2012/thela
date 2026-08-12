@@ -102,6 +102,11 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 | `wrangler.jsonc` with `main`/`assets` | Breaks `astro build`. The adapter generates the entry. |
 | `Astro.locals.runtime.env` | Removed in Astro 7. Use `import { env } from 'cloudflare:workers'`. |
 | Any `.sql` in `migrations/` | Wrangler applies **all** of them. Tests live in `tests/`, seeds in `seeds/`. |
+| `"database_id": ""` or omitting it | Kills `astro dev` at the first request. Miniflare asserts the id is truthy; empty gives a bare falsy-value assertion, absent gives a misleading dep-optimizer error. Keep the placeholder. |
+| Changing `database_id` | Re-keys the local D1. Your tables vanish — re-run `db:migrate:local` and `db:seed:local`. |
+| `astro dev` failing on first ever start | The vite dep optimizer races itself once. Start it again; it is not your code. Real errors are in `.astro/dev.log`, not stdout. |
+| Testing a form POST with curl | Astro checks `Origin` and 403s without it. Send `-H "Origin: http://localhost:4321"`. Browsers send it automatically. |
+| `Uint8Array` into WebCrypto | Since TS 5.7 it widens to `ArrayBufferLike`, which WebCrypto rejects. Annotate `Uint8Array<ArrayBuffer>`. |
 | Serving images through the Worker | Turns a comfortable free tier into an overage. R2 custom domain only. |
 | Prefix-matching Maharashtra pincodes | `403xxx` is **Goa**, inside the 400–445 range. Use the compiled list. |
 | Assuming a bank emails UPI credits | RBI mandates SMS, only *permits* email. HDFC is the one confirmed bank. |

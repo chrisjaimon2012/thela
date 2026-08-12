@@ -114,17 +114,63 @@ Single-tenant by design: one repo, one deploy, one shop per Cloudflare account.
 
 Full detail in [docs/architecture.md](docs/architecture.md).
 
+## Install
+
+<a href="https://deploy.workers.cloudflare.com/?url=https://github.com/chrisjaimon2012/thela"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" /></a>
+
+Cloudflare copies this repository into your own GitHub account, creates the
+database, asks you for two values, builds, and deploys. Then open `/admin/setup`
+and answer a short wizard: shop name, currency, address, how you take payment.
+No terminal, no configuration file.
+
+Two things to know before you click.
+
+**A free Cloudflare account is enough**, and no card is needed. A default
+install has no object storage, so your shop starts with no product photographs
+— everything else works. Adding photographs means adding
+[R2](https://developers.cloudflare.com/r2/), whose free tier is generous but
+whose signup asks for a payment method; the admin walks you through it when you
+are ready.
+
+**If the deploy finishes but your shop shows Cloudflare's "Hello World" page**,
+you have hit [an open Cloudflare bug](https://github.com/cloudflare/workers-sdk/issues/14553)
+where the copy silently fails. The dashboard reports success either way. Delete
+the Worker and the repository it made, and use the manual path below.
+
+### Installing by hand
+
+```bash
+git clone https://github.com/chrisjaimon2012/thela.git && cd thela
+npm install
+npx wrangler d1 create thela        # paste the id into wrangler.jsonc
+npx wrangler secret put ADMIN_SETUP_TOKEN
+npx wrangler secret put SESSION_SECRET
+npm run deploy                      # applies migrations, then deploys
+```
+
+### Updates
+
+Installed shops receive updates as a pull request. A scheduled action checks
+this repository weekly and, when something has changed, opens a PR against your
+own copy with a plain-language summary. Read it, click Merge, and Cloudflare
+rebuilds. Nothing changes on your shop until you do.
+
+This exists because the Deploy button *copies* rather than forks, so there is no
+"Sync fork" button to press — see
+[ADR-0021](docs/decisions/0021-install-by-button-update-by-pull-request.md).
+
 ## Development
 
 ```bash
 npm install
 npm run db:migrate:local   # apply the schema to a local D1
 npm run db:seed:local      # sample church shop, six frame blanks
+npm run db:seed:apparel    # or: a Lyon print studio, in euros
 npm run dev
 ```
 
 ```bash
-npm run test:schema        # 7 executable schema invariants
+npm run test:schema        # 13 executable schema invariants
 npm run typecheck
 npm run build
 ```
