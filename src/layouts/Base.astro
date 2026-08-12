@@ -1,14 +1,11 @@
 ---
-import { loadSettings, type Settings } from '../lib/settings';
-import { env } from 'cloudflare:workers';
-
 interface Props {
   title?: string;
   description?: string;
 }
 
 const { title, description } = Astro.props;
-const settings: Settings = await loadSettings(env.DB);
+const settings = Astro.locals.settings;
 const pageTitle = title ? `${title} · ${settings.shopName}` : settings.shopName;
 ---
 

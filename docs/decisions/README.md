@@ -28,3 +28,5 @@ the old `Superseded by ADR-XXXX`. The value is the trail, not the tidiness.
 | [0017](0017-global-first-india-first.md) | Global by construction, India first by sequence | Accepted |
 | [0018](0018-verification-first-payments.md) | Verify payments rather than process them | Accepted |
 | [0019](0019-ship-an-app-not-an-integration.md) | Ship an app you deploy, not a package you install | Accepted |
+| [0020](0020-customization-surface.md) | One accent, computed contrast — what earns a setting | Proposed |
+| [0021](0021-install-by-button-update-by-pull-request.md) | Install by button, update by pull request | Accepted |

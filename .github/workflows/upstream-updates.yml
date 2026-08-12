@@ -1,0 +1,109 @@
+# Opens a pull request when thela releases an update.
+#
+# WHY THIS EXISTS
+#
+# Cloudflare's "Deploy to Cloudflare" button CLONES this repository into your
+# account — it does not fork it. There is no fork relationship, so there is no
+# "Sync fork" button, and a shop installed that way is severed from upstream
+# the moment it is created. Without something like this, a security fix here
+# never reaches a shop already running, which for a project aimed at people who
+# do not use a terminal is the whole ballgame.
+#
+# So once a week this asks upstream what changed and, if anything did, opens a
+# pull request against your own repo. You read the summary, click Merge, and
+# Workers Builds deploys it. If you never merge, nothing happens — your shop
+# keeps running exactly as it is.
+#
+# It never pushes to your default branch and never merges anything itself.
+# Deciding when your shop changes is yours.
+#
+# TO SWITCH IT OFF: delete this file, or use the Actions tab > Upstream
+# updates > ⋯ > Disable workflow.
+
+name: Upstream updates
+
+on:
+  schedule:
+    # 05:30 UTC Mondays — 11:00 IST, 07:30 CEST. A morning, not a Friday night.
+    - cron: '30 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    # Skip on the upstream repo itself, where this would be a PR from main to main.
+    if: github.repository != 'chrisjaimon2012/thela'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        id: fetch
+        run: |
+          git remote add upstream https://github.com/chrisjaimon2012/thela.git
+          git fetch upstream main --tags
+
+          # An unrelated-histories merge is expected: the button's clone starts
+          # from a fresh import commit with no shared ancestor.
+          BASE=$(git merge-base HEAD upstream/main || echo "")
+          if [ -n "$BASE" ] && [ "$(git rev-list --count "$BASE"..upstream/main)" = "0" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already up to date with upstream."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream into a branch
+        if: steps.fetch.outputs.changed == 'true'
+        run: |
+          git config user.name  'thela updates'
+          git config user.email 'noreply@github.com'
+          git checkout -B upstream-update
+
+          # Conflicts are not a failure — they mean this shop edited a file
+          # thela also changed. Commit the conflict markers so the PR shows
+          # exactly which files need a human, rather than the job going red
+          # with no artefact to look at.
+          git merge upstream/main \
+            --allow-unrelated-histories \
+            --no-edit \
+            -m 'Merge upstream thela' || git commit -am 'Merge upstream thela (CONFLICTS — see files below)'
+
+          git push --force origin upstream-update
+
+      - name: Open or update the pull request
+        if: steps.fetch.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh pr view upstream-update --json number >/dev/null 2>&1; then
+            echo "Pull request already open; pushed the latest changes to it."
+            exit 0
+          fi
+
+          {
+            echo "Upstream thela has changes your shop does not have yet."
+            echo
+            echo "**Nothing has changed on your live shop.** Merging this pull"
+            echo "request is what applies the update; Cloudflare then rebuilds"
+            echo "and deploys automatically."
+            echo
+            echo "If GitHub says this branch has conflicts, a file you or thela"
+            echo "changed was edited on both sides. Nothing is broken — leave"
+            echo "this open and ask for help."
+            echo
+            echo "### What changed upstream"
+            echo
+            git log --no-merges --pretty='- %s' HEAD~1..upstream/main | head -40
+          } > /tmp/body.md
+
+          gh pr create \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head upstream-update \
+            --title 'Update thela' \
+            --body-file /tmp/body.md

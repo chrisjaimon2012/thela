@@ -104,6 +104,69 @@ export async function loadSettings(db: D1Database): Promise<Settings> {
 }
 
 /**
+ * Settings, memoised for the life of a warm isolate.
+ *
+ * THE ARITHMETIC THAT MAKES THIS NECESSARY
+ *
+ * `SELECT key, value FROM setting` is a full scan, and D1 bills rows SCANNED.
+ * At roughly fifty rows that is fifty against a free-tier budget of 5,000,000
+ * rows a day — exactly 100,000 renders, which is also the Workers free-plan
+ * request ceiling. One settings read per request already spends the entire
+ * budget, leaving nothing for the catalogue queries on the same request. Before
+ * this existed the homepage did two and the product page three.
+ *
+ * WHY SIXTY SECONDS IS THE RIGHT NUMBER, AND NOT A GUESS
+ *
+ * It is the `s-maxage` the storefront pages already set. The edge is allowed to
+ * serve a sixty-second-old page, so a sixty-second-old settings row cannot make
+ * the shop any staler than it already is. Any longer and the memo becomes an
+ * independent source of staleness the shopkeeper can observe; that is the bound.
+ *
+ * WHY SOME PATHS BYPASS IT
+ *
+ * A stale `payment.upi_vpa` sends real money to the wrong account. Sixty seconds
+ * of that after a shopkeeper corrects a typo is not acceptable at any cache
+ * ratio, and those pages are a tiny fraction of traffic anyway.
+ */
+const MEMO_TTL_MS = 60_000;
+
+let memo: { at: number; settings: Settings } | null = null;
+
+/** Paths where a stale setting could misdirect money or lock out an admin. */
+const NEVER_MEMOISED = /^\/(cart|checkout|pay|order|admin|api)(\/|$)/;
+
+export async function getSettings(db: D1Database, pathname: string): Promise<Settings> {
+  const now = Date.now();
+
+  if (!NEVER_MEMOISED.test(pathname) && memo && now - memo.at < MEMO_TTL_MS) {
+    return memo.settings;
+  }
+
+  try {
+    const settings = await loadSettings(db);
+    memo = { at: now, settings };
+    return settings;
+  } catch {
+    // A shop that cannot read its settings should still sell. Serving defaults
+    // means the wrong shop name for a moment; a 500 means no shop at all. The
+    // failure is loud in Workers logs either way.
+    return memo?.settings ?? { ...DEFAULTS };
+  }
+}
+
+/**
+ * Drop the memo after an admin write.
+ *
+ * This only clears the isolate that handled the write — the one the shopkeeper
+ * is looking at, so their change appears immediately. Other isolates catch up
+ * within the TTL. There is deliberately no cross-isolate invalidation: checking
+ * a revision counter would need the very read this memo exists to avoid.
+ */
+export function forgetSettings(): void {
+  memo = null;
+}
+
+/**
  * The shop's country, spelled the way its own customers spell it — "India" for
  * an en-IN shop, "Inde" for fr-FR. `Intl.DisplayNames` is in workerd, so this
  * costs nothing and saves us shipping a country table.

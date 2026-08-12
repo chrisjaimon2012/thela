@@ -188,6 +188,120 @@ function buildAxes(
     .filter((a) => a.values.length > 1);
 }
 
+/**
+ * The variant a customer picked, identified by product slug plus one value per
+ * axis. Absent values match NULL, so a product with no options resolves with an
+ * empty selection.
+ *
+ * `ifnull(x, '')` mirrors the `variant_grid` index exactly. Writing it as
+ * `option_1 = ?` would silently never match a NULL axis, which is the failure
+ * a one-axis shop would hit on its very first order.
+ */
+export async function findVariant(
+  db: D1Database,
+  slug: string,
+  options: [string | null, string | null, string | null],
+): Promise<{ id: string; sku: string; priceMinor: Minor; available: boolean } | null> {
+  const row = await db
+    .prepare(
+      `SELECT v.id, v.sku, v.price_minor AS priceMinor, ${AVAILABLE_SQL} AS available
+         FROM variant v
+         JOIN product p    ON p.id  = v.product_id
+         JOIN stock_item s ON s.sku = v.sku
+        WHERE p.slug = ?1 AND p.status = 'active' AND v.active = 1
+          AND ifnull(v.option_1, '') = ?2
+          AND ifnull(v.option_2, '') = ?3
+          AND ifnull(v.option_3, '') = ?4`,
+    )
+    .bind(slug, options[0] ?? '', options[1] ?? '', options[2] ?? '')
+    .first<{ id: string; sku: string; priceMinor: number; available: number }>();
+
+  return row ? { ...row, available: row.available === 1 } : null;
+}
+
+/** A cart line with everything the cart page and the checkout both need. */
+export interface PricedLine {
+  variantId: string;
+  sku: string;
+  slug: string;
+  title: string;
+  /** "12x18 in · Oak", built from whichever axes this variant actually uses. */
+  optionLabel: string;
+  qty: number;
+  unitMinor: Minor;
+  lineMinor: Minor;
+  imageKey: string | null;
+  /** False when the variant vanished, was archived, or sold out since it was added. */
+  available: boolean;
+  /** Units a customer may still order. `null` for an untracked, made-to-order item. */
+  maxQty: number | null;
+}
+
+/**
+ * Price a cart against the live catalogue.
+ *
+ * Prices are read here, every time, and never carried in the cart cookie. A
+ * cookie the customer holds is input, not a record — trusting a price in it
+ * would let anyone name their own.
+ *
+ * Lines whose variant no longer exists are dropped rather than errored: a
+ * shopkeeper deleting a product must not make the cart page un-renderable for
+ * whoever had it open. The caller compares counts to tell the customer.
+ */
+export async function priceLines(
+  db: D1Database,
+  wanted: { variantId: string; qty: number }[],
+): Promise<PricedLine[]> {
+  if (wanted.length === 0) return [];
+
+  const placeholders = wanted.map((_, i) => `?${i + 1}`).join(', ');
+  const { results } = await db
+    .prepare(
+      `SELECT v.id AS variantId, v.sku, p.slug, p.title,
+              v.option_1 AS o1, v.option_2 AS o2, v.option_3 AS o3,
+              v.price_minor AS unitMinor,
+              ${AVAILABLE_SQL}                       AS available,
+              CASE WHEN s.tracked = 0 THEN NULL
+                   ELSE s.on_hand - s.reserved END   AS maxQty,
+              (SELECT r2_key FROM product_image i
+                WHERE i.product_id = p.id
+                ORDER BY i.position LIMIT 1)          AS imageKey
+         FROM variant v
+         JOIN product p    ON p.id  = v.product_id
+         JOIN stock_item s ON s.sku = v.sku
+        WHERE v.id IN (${placeholders})`,
+    )
+    .bind(...wanted.map((w) => w.variantId))
+    .all<{
+      variantId: string; sku: string; slug: string; title: string;
+      o1: string | null; o2: string | null; o3: string | null;
+      unitMinor: number; available: number; maxQty: number | null;
+      imageKey: string | null;
+    }>();
+
+  const byId = new Map(results.map((r) => [r.variantId, r]));
+
+  // Iterate `wanted`, not `results`: the customer's ordering is theirs, and
+  // SQL gives no order guarantee for an IN list.
+  return wanted.flatMap((w) => {
+    const r = byId.get(w.variantId);
+    if (!r) return [];
+    return [{
+      variantId: r.variantId,
+      sku: r.sku,
+      slug: r.slug,
+      title: r.title,
+      optionLabel: [r.o1, r.o2, r.o3].filter(Boolean).join(' · '),
+      qty: w.qty,
+      unitMinor: r.unitMinor,
+      lineMinor: r.unitMinor * w.qty,
+      imageKey: r.imageKey,
+      available: r.available === 1,
+      maxQty: r.maxQty,
+    }];
+  });
+}
+
 /** Product `meta_json` is shopkeeper-editable, so a malformed value must not 500 the page. */
 function safeJson(raw: string): Record<string, unknown> {
   try {

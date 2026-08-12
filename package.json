@@ -9,18 +9,19 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "wrangler dev",
-    "deploy": "astro build && wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply thela --local",
-    "db:migrate": "wrangler d1 migrations apply thela --remote",
-    "db:seed:local": "wrangler d1 execute thela --local --file=./seeds/dev.sql",
     "bank:selftest": "node ./scripts/bank-selftest.mjs",
+    "build": "astro build",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:seed:apparel": "wrangler d1 execute DB --local --file=./seeds/apparel.sql",
+    "db:seed:local": "wrangler d1 execute DB --local --file=./seeds/dev.sql",
+    "deploy": "astro build && wrangler deploy",
+    "dev": "astro dev",
+    "predeploy": "wrangler d1 migrations apply DB --remote",
+    "preview": "wrangler dev",
     "test": "vitest run && npm run test:schema",
     "test:schema": "node ./scripts/test-schema.mjs",
-    "typecheck": "astro check && tsc --noEmit",
-    "db:seed:apparel": "wrangler d1 execute thela --local --file=./seeds/apparel.sql"
+    "typecheck": "astro check && tsc --noEmit"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.1",

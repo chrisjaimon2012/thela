@@ -1,12 +1,13 @@
 ---
 import Base from '../layouts/Base.astro';
 import { listProducts } from '../lib/catalogue';
-import { loadSettings, mediaUrl } from '../lib/settings';
+import { mediaUrl } from '../lib/settings';
 import { priceFormatter } from '../lib/money';
 import { env } from 'cloudflare:workers';
 
 const db = env.DB;
-const [products, settings] = await Promise.all([listProducts(db), loadSettings(db)]);
+const settings = Astro.locals.settings;
+const products = await listProducts(db);
 const price = priceFormatter(settings);
 
 // Cheap to render, changes only when the shopkeeper edits something. Let the

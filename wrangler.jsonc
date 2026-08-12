@@ -19,22 +19,46 @@
     {
       "binding": "DB",
       "database_name": "thela",
-      "database_id": "REPLACE_ME",
+      // Omitted on purpose. The Deploy to Cloudflare button creates the
+      // database and writes the real id into the copy of this file in your
+      // repo. Deploying by hand instead? Run `wrangler d1 create thela` and
+      // paste the id it prints as "database_id".
+      //
+      // Do NOT write "" and do not omit it. Miniflare asserts the id is
+      // truthy, so `astro dev` dies at the first request — with a bare falsy
+      // -value assertion from deep inside its bundle in the empty case, and a
+      // misleading dep-optimizer error in the absent case. Both cost an hour
+      // to diagnose. A placeholder is the only form that serves local dev and
+      // the installer at once.
+      "database_id": "local-dev-placeholder",
       "migrations_dir": "migrations"
     }
   ],
 
-  "r2_buckets": [
-    // Product photography and generated shipping labels.
-    //
-    // Serve product images from an R2 CUSTOM DOMAIN, never through a Worker
-    // route. Piping images through the Worker is the one mistake that turns a
-    // comfortable free tier into an overage, and Cloudflare's terms separately
-    // reserve the right to limit free-plan CDN use for "a disproportionate
-    // percentage of pictures".
-    { "binding": "MEDIA", "bucket_name": "thela-media" },
-    { "binding": "LABELS", "bucket_name": "thela-labels" }
-  ],
+  // R2 IS NOT DECLARED HERE, AND THAT IS DELIBERATE.
+  //
+  // R2 has a real free tier — 10 GB, 1M Class A, 10M Class B, no egress charge
+  // — but the account must carry an R2 subscription before a bucket can exist,
+  // and Cloudflare's own get-started page tells you to "complete the checkout
+  // flow" to add one. That means a card. A volunteer running a church stall in
+  // Maharashtra may not have an international card at all, and a shop that
+  // cannot be installed without one is not the shop this project is for.
+  //
+  // So a default install has no object storage. Product images are absent
+  // rather than broken, and the logo degrades to the shop name as text. The
+  // admin explains the trade and links to the checkout flow, and the moment a
+  // shopkeeper opts in they paste this block back:
+  //
+  //   "r2_buckets": [
+  //     { "binding": "MEDIA",  "bucket_name": "thela-media"  },
+  //     { "binding": "LABELS", "bucket_name": "thela-labels" }
+  //   ],
+  //
+  // Then serve MEDIA from an R2 CUSTOM DOMAIN, never through a Worker route.
+  // Piping images through the Worker is the one mistake that turns a
+  // comfortable free tier into an overage, and Cloudflare's terms separately
+  // reserve the right to limit free-plan CDN use for "a disproportionate
+  // percentage of pictures".
 
   // Native rate limiting, so we do not need Durable Objects in v1.
   "ratelimits": [
