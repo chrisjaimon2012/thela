@@ -1,0 +1,43 @@
+---
+import Base from '../layouts/Base.astro';
+import { listProducts } from '../lib/catalogue';
+import { loadSettings, mediaUrl } from '../lib/settings';
+import { formatINR } from '../lib/money';
+import { env } from 'cloudflare:workers';
+
+const db = env.DB;
+const [products, settings] = await Promise.all([listProducts(db), loadSettings(db)]);
+
+// Cheap to render, changes only when the shopkeeper edits something. Let the
+// edge serve it and revalidate in the background so a price change is live in
+// under a minute without anyone waiting on the origin.
+Astro.response.headers.set(
+  'Cache-Control',
+  'public, max-age=0, s-maxage=60, stale-while-revalidate=600',
+);
+---
+
+<Base>
+  {products.length === 0 ? (
+    <p class="muted" style="padding:3rem 0">
+      Nothing here yet. Add your first product in <a href="/admin">the admin</a>.
+    </p>
+  ) : (
+    <div class="grid" style="padding:2rem 0">
+      {products.map((p) => (
+        <a class="card" href={`/p/${p.slug}`}>
+          <div class="thumb">
+            {mediaUrl(settings, p.imageKey) && (
+              <img src={mediaUrl(settings, p.imageKey)} alt={p.title} loading="lazy" width="600" height="900" />
+            )}
+          </div>
+          <h3>{p.title}</h3>
+          <p class="price muted">
+            {products.length > 0 && `₹${formatINR(p.fromPaise)}`}
+            {!p.anyAvailable && <span class="sold-out"> · sold out</span>}
+          </p>
+        </a>
+      ))}
+    </div>
+  )}
+</Base>

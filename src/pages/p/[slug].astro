@@ -1,0 +1,113 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getProduct } from '../../lib/catalogue';
+import { loadSettings, mediaUrl } from '../../lib/settings';
+import { formatINR } from '../../lib/money';
+import { env } from 'cloudflare:workers';
+
+const { slug } = Astro.params;
+const db = env.DB;
+
+const product = slug ? await getProduct(db, slug) : null;
+if (!product) return new Response('Not found', { status: 404 });
+
+const settings = await loadSettings(db);
+
+// Options are modelled as two free-standing axes (size, colour) so the picker
+// can be two selects rather than a combinatorial list. Preserve first-seen
+// order: the shopkeeper's ordering is deliberate.
+const axis = (pick: (v: (typeof product.variants)[number]) => string | null) => [
+  ...new Set(product.variants.map(pick).filter((x): x is string => Boolean(x))),
+];
+const sizes = axis((v) => v.option1);
+const colours = axis((v) => v.option2);
+
+const cheapest = Math.min(...product.variants.map((v) => v.pricePaise));
+const anyAvailable = product.variants.some((v) => v.available);
+
+Astro.response.headers.set(
+  'Cache-Control',
+  'public, max-age=0, s-maxage=60, stale-while-revalidate=600',
+);
+---
+
+<Base title={product.title} description={product.summary ?? undefined}>
+  <article style="display:grid;gap:2rem;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));padding:2rem 0">
+    <div>
+      {product.imageKeys.length > 0 ? (
+        product.imageKeys.map((key, i) => (
+          <img
+            src={mediaUrl(settings, key)}
+            alt={product.title}
+            width="900" height="1350"
+            loading={i === 0 ? 'eager' : 'lazy'}
+            style="border-radius:3px;margin-bottom:.75rem"
+          />
+        ))
+      ) : (
+        <div class="thumb" style="aspect-ratio:2/3;background:var(--line);border-radius:3px"></div>
+      )}
+    </div>
+
+    <div class="measure">
+      <h1 style="margin:0 0 .35rem;font-size:1.6rem;letter-spacing:-.015em">{product.title}</h1>
+      <p class="price" style="font-size:1.15rem;margin:0 0 1rem">₹{formatINR(cheapest)}</p>
+
+      {product.summary && <p class="muted">{product.summary}</p>}
+
+      {anyAvailable ? (
+        <form method="POST" action="/api/cart/add" style="display:grid;gap:.75rem;max-width:22rem;margin:1.5rem 0">
+          <input type="hidden" name="slug" value={product.slug} />
+
+          {sizes.length > 1 && (
+            <label>
+              Size
+              <select name="option1" required style="display:block;width:100%;margin-top:.25rem">
+                {sizes.map((s) => <option value={s}>{s}</option>)}
+              </select>
+            </label>
+          )}
+          {colours.length > 1 && (
+            <label>
+              Frame
+              <select name="option2" required style="display:block;width:100%;margin-top:.25rem">
+                {colours.map((c) => <option value={c}>{c}</option>)}
+              </select>
+            </label>
+          )}
+          {sizes.length <= 1 && <input type="hidden" name="option1" value={sizes[0] ?? ''} />}
+          {colours.length <= 1 && <input type="hidden" name="option2" value={colours[0] ?? ''} />}
+
+          <button type="submit">Add to cart</button>
+        </form>
+      ) : (
+        <p class="sold-out" style="margin:1.5rem 0">Sold out.</p>
+      )}
+
+      {product.bodyMd && (
+        <div class="muted" style="white-space:pre-wrap">{product.bodyMd}</div>
+      )}
+
+      <!--
+        Legal Metrology (Packaged Commodities) Rules 2011 rule 6(10) requires
+        the packaged-commodity declarations to be mirrored on the product page.
+        These are structured fields on the product, not prose, so they render
+        consistently and cannot be forgotten in a description.
+      -->
+      <dl style="margin-top:2rem;font-size:.87rem;display:grid;grid-template-columns:auto 1fr;gap:.3rem 1rem">
+        {product.variants[0] && (
+          <>
+            <dt class="muted">Net quantity</dt><dd style="margin:0">1 N</dd>
+            <dt class="muted">Dimensions</dt>
+            <dd style="margin:0">
+              {product.variants[0].lenMm / 10} × {product.variants[0].widMm / 10} cm
+            </dd>
+          </>
+        )}
+        {settings.legalName && (<><dt class="muted">Packed by</dt><dd style="margin:0">{settings.legalName}</dd></>)}
+        <dt class="muted">Country of origin</dt><dd style="margin:0">India</dd>
+        {settings.supportEmail && (<><dt class="muted">Consumer care</dt><dd style="margin:0">{settings.supportEmail}</dd></>)}
+      </dl>
+    </div>
+  </article>
+</Base>

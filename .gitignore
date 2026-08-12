@@ -16,3 +16,4 @@ docs/bank-samples/raw/
 
 .DS_Store
 *.log
+.astro/

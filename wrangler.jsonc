@@ -1,18 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "thela",
-  "main": "./dist/_worker.js/index.js",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
 
-  // Static assets are uploaded separately and do NOT count against the 3 MiB
-  // gzipped Worker bundle, and requests to them are free and unlimited. This
-  // is the single reason the whole shop fits the free tier: prerender every
-  // route you can, and keep the Worker to the JSON API and the admin.
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS"
-  },
+  // `main` and `assets` are deliberately absent: the Astro Cloudflare adapter
+  // generates the Worker entry and wires the asset directory itself. Setting
+  // them here makes `astro build` fail, because the entry does not exist until
+  // after the build it is trying to configure.
+  //
+  // Static assets are uploaded separately from the Worker script, so they do
+  // not count against the 3 MiB gzipped bundle limit and requests to them are
+  // free and unlimited. That is what keeps the whole shop inside the free tier.
 
   "observability": { "enabled": true },
 

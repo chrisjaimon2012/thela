@@ -15,21 +15,26 @@
     "deploy": "astro build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply thela --local",
     "db:migrate": "wrangler d1 migrations apply thela --remote",
-    "db:seed:local": "wrangler d1 execute thela --local --file=./migrations/seed.sql",
+    "db:seed:local": "wrangler d1 execute thela --local --file=./seeds/dev.sql",
     "bank:selftest": "node ./scripts/bank-selftest.mjs",
     "test": "vitest run && npm run test:schema",
-    "test:schema": "sqlite3 :memory: \".read migrations/0001_init.sql\" \".read migrations/invariants.test.sql\"",
+    "test:schema": "sqlite3 :memory: \".read migrations/0001_init.sql\" \".read tests/invariants.test.sql\"",
     "typecheck": "astro check && tsc --noEmit"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^14.1.7",
-    "astro": "^7.1.6",
-    "postal-mime": "^2.4.4"
+    "@astrojs/cloudflare": "^14.2.1",
+    "astro": "^7.2.1",
+    "postal-mime": "^3.0.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260801.0",
-    "typescript": "^5.9.2",
+    "@cloudflare/workers-types": "^5.20260812.1",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.10",
-    "wrangler": "^4.118.0"
+    "wrangler": "^4.121.0"
+  },
+  "allowScripts": {
+    "workerd@1.20260804.1": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.28.1": true
   }
 }

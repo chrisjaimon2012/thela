@@ -305,6 +305,10 @@ INSERT INTO setting (key, value) VALUES
   ('shop.address',         ''),
   ('shop.support_email',   ''),
   ('shop.support_phone',   ''),
+  -- R2 custom domain for product images. Serving images through the Worker
+  -- instead is the one change that turns a comfortable free tier into an
+  -- overage, so the correct path is configuration, not a code branch.
+  ('media.base_url',       ''),
   ('payment.provider',     'upi-email'),
   ('payment.upi_vpa',      ''),
   ('payment.upi_payee',    ''),

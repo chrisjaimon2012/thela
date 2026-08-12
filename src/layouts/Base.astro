@@ -1,0 +1,114 @@
+---
+import { loadSettings, type Settings } from '../lib/settings';
+import { env } from 'cloudflare:workers';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const settings: Settings = await loadSettings(env.DB);
+const pageTitle = title ? `${title} · ${settings.shopName}` : settings.shopName;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!--
+      No webfont. On a mid-range Android over patchy 4G — the actual audience —
+      a font download is the slowest thing on the page and buys nothing that
+      the system UI font does not already give us.
+    -->
+    <style is:global>
+      :root {
+        --ink: #16181d;
+        --ink-2: #565d6b;
+        --paper: #fdfdfc;
+        --line: #e3e5e2;
+        --accent: #1a5c3a;
+        --radius: 3px;
+        --measure: 68ch;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #ecefeb; --ink-2: #a2aaa6; --paper: #14161a;
+          --line: #272b30; --accent: #6fc79a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; }
+      img { max-width: 100%; height: auto; display: block; }
+      .wrap { max-width: 1040px; margin: 0 auto; padding: 0 1rem; }
+      .measure { max-width: var(--measure); }
+
+      header.site, footer.site { border-color: var(--line); }
+      header.site { border-bottom: 1px solid; padding: 1rem 0; }
+      footer.site { border-top: 1px solid; padding: 2rem 0; margin-top: 4rem; color: var(--ink-2); font-size: .85rem; }
+      header.site .bar { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+      .brand { font-weight: 650; font-size: 1.1rem; text-decoration: none; letter-spacing: -.01em; }
+
+      .grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+      .card { text-decoration: none; display: block; }
+      .card .thumb { aspect-ratio: 2 / 3; background: var(--line); border-radius: var(--radius); overflow: hidden; }
+      .card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+      .card h3 { margin: .6rem 0 .15rem; font-size: .98rem; font-weight: 600; }
+      .price { font-variant-numeric: tabular-nums; }
+      .muted { color: var(--ink-2); }
+      .sold-out { color: var(--ink-2); font-size: .82rem; }
+
+      button, .btn {
+        font: inherit; border: 1px solid var(--accent); background: var(--accent);
+        color: var(--paper); padding: .7rem 1.1rem; border-radius: var(--radius);
+        cursor: pointer; text-decoration: none; display: inline-block;
+      }
+      button[disabled] { opacity: .5; cursor: not-allowed; }
+      select, input { font: inherit; padding: .55rem .6rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    </style>
+  </head>
+
+  <body>
+    <header class="site">
+      <div class="wrap bar">
+        <a class="brand" href="/">{settings.shopName}</a>
+        <a href="/cart" rel="nofollow">Cart</a>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <slot />
+    </main>
+
+    <footer class="site">
+      <div class="wrap measure">
+        {/*
+          Consumer Protection (E-Commerce) Rules 2020 rule 4(2) requires the
+          LEGAL name and principal geographic address, not just a brand.
+        */}
+        {settings.legalName && <p>{settings.shopName} is a trading name of {settings.legalName}.</p>}
+        {settings.address && <p>{settings.address}</p>}
+        {(settings.supportEmail || settings.supportPhone) && (
+          <p>
+            {settings.supportEmail && <a href={`mailto:${settings.supportEmail}`}>{settings.supportEmail}</a>}
+            {settings.supportEmail && settings.supportPhone && ' · '}
+            {settings.supportPhone}
+          </p>
+        )}
+      </div>
+    </footer>
+  </body>
+</html>
