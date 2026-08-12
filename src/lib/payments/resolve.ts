@@ -32,9 +32,10 @@ export async function resolve(db: D1Database, ev: Evidence): Promise<Resolution>
   const order = await db
     .prepare(
       `SELECT id, created_at FROM orders
-        WHERE status = 'awaiting_payment' AND amount_due_minor = ?1`,
+        WHERE status = 'awaiting_payment'
+          AND currency = ?1 AND amount_due_minor = ?2`,
     )
-    .bind(ev.amountMinor)
+    .bind(ev.currency, ev.amountMinor)
     .first<{ id: string; created_at: string }>();
 
   if (!order) {
@@ -132,15 +133,16 @@ function recordUnmatched(
   return db
     .prepare(
       `INSERT OR IGNORE INTO credit_evidence
-         (utr, amount_minor, credited_at, payer_vpa, narration, bank_id,
-          source, confidence, candidate_order, unmatched_reason)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
+         (reference, currency, amount_minor, credited_at, payer_ref, narration,
+          bank_id, source, confidence, candidate_order, unmatched_reason)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
     )
     .bind(
       ev.reference,
+      ev.currency,
       ev.amountMinor,
       ev.at,
-      ev.payerVpa ?? null,
+      ev.payerRef ?? null,
       ev.narration ?? null,
       ev.bankId ?? null,
       ev.source,

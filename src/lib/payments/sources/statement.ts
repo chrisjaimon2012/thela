@@ -77,7 +77,18 @@ export function parseStatement(csv: string): StatementRow[] {
 export async function importStatement(
   db: D1Database,
   csv: string,
-  meta: { importId: string; filename: string; bankId?: string; actor?: string },
+  meta: {
+    importId: string;
+    filename: string;
+    /**
+     * The account's currency. A statement states amounts and not what they are
+     * denominated in, because the account only ever holds one currency — so it
+     * has to be supplied, and it must be the shop's own.
+     */
+    currency: string;
+    bankId?: string;
+    actor?: string;
+  },
 ): Promise<{ rows: number; results: Resolution[] }> {
   const rows = parseStatement(csv);
   const results: Resolution[] = [];
@@ -89,6 +100,7 @@ export async function importStatement(
         confidence: 'ledger',
         reference: r.reference,
         amountMinor: r.amountMinor,
+        currency: meta.currency,
         at: r.at,
         narration: r.narration,
         bankId: meta.bankId,

@@ -44,9 +44,19 @@ export interface Evidence {
    */
   reference: string;
   amountMinor: Minor;
+  /**
+   * ISO 4217. Required, not optional.
+   *
+   * The open-amount slot is unique per (currency, amount), so matching on
+   * amount alone would let a €1,399.37 credit settle an order for ₹1,399.37 in
+   * a shop trading in both. The index would not stop it — the two orders are
+   * legitimately distinct rows.
+   */
+  currency: string;
   /** ISO 8601. When the money moved, not when we heard about it. */
   at: string;
-  payerVpa?: string;
+  /** VPA, IBAN, card last four — whatever the rail identifies a payer by. */
+  payerRef?: string;
   narration?: string;
   /** Admin identity, for `asserted` evidence. */
   actor?: string;

@@ -31,6 +31,12 @@ function dkimDomain(headers: Headers): string | null {
 export async function handleBankEmail(
   message: ForwardableEmailMessage,
   env: { DB: D1Database; BANK_ALERT_FORWARD_TO?: string },
+  /**
+   * The account's currency. An alert says "credited 1,399.37" and never says
+   * of what — the account holds one currency, so the shop's setting is the
+   * answer, and passing it in keeps this function free of a settings read.
+   */
+  currency: string,
 ): Promise<Resolution | null> {
   const domain = dkimDomain(message.headers);
   const bank = domain ? bankByDkim(domain) : undefined;
@@ -72,8 +78,9 @@ export async function handleBankEmail(
     confidence: 'alert',
     reference: utr,
     amountMinor,
+    currency,
     at: new Date(email.date ?? Date.now()).toISOString(),
-    payerVpa,
+    payerRef: payerVpa,
     narration: email.subject,
     bankId: bank.id,
   });
