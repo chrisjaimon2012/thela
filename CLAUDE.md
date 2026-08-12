@@ -29,6 +29,14 @@ Violating any of these is a bug, not a style disagreement.
    registry, the docs, or the statute. Three of the four versions originally in
    `package.json` did not exist because they came from memory.
 5. **Never put a secret in `wrangler.jsonc`** or any committed file.
+6. **Never make a page do the work.** Files under `src/pages/` read input, call
+   one function in `src/lib/`, and render. No SQL, no business rule, no
+   branching on shop configuration. This is what keeps
+   [ADR-0019](docs/decisions/0019-ship-an-app-not-an-integration.md) reversible;
+   lose it and we lose the option quietly.
+7. **Never hardcode what a different shop would need different.** If a print
+   studio in Lyon would want another value, it is a setting, not a literal. The
+   `setting` table is the only reason a vendor can use thela without forking it.
 
 ## Before you change code
 
@@ -48,7 +56,7 @@ Violating any of these is a bug, not a style disagreement.
 Run these. All three must pass:
 
 ```bash
-npm run test:schema   # 7 executable schema invariants
+npm run test:schema   # 13 executable schema invariants
 npm run typecheck
 npm run build         # also prints nothing if the bundle is fine
 ```
