@@ -118,11 +118,17 @@ CREATE TABLE orders (
   -- becomes a second matching signal and disambiguates a rare tie.
   payer_vpa_hint  TEXT,
 
-  ship_line1      TEXT NOT NULL,
+  -- Chosen at checkout. `pickup` means the buyer collects in person: no
+  -- carrier, no address, no shipping charge. For a parish shop selling to its
+  -- own congregation this is likely the most-used option, and it is free.
+  fulfilment      TEXT NOT NULL DEFAULT 'carrier'
+                  CHECK (fulfilment IN ('pickup', 'carrier')),
+
+  ship_line1      TEXT,
   ship_line2      TEXT,
-  ship_city       TEXT NOT NULL,
-  ship_state      TEXT NOT NULL,
-  ship_pincode    TEXT NOT NULL CHECK (length(ship_pincode) = 6),
+  ship_city       TEXT,
+  ship_state      TEXT,
+  ship_pincode    TEXT CHECK (ship_pincode IS NULL OR length(ship_pincode) = 6),
 
   note            TEXT,
   admin_note      TEXT,
@@ -131,7 +137,16 @@ CREATE TABLE orders (
   -- Reservation expiry. A cron releases stock for orders that pass this
   -- while still awaiting payment, which also frees the paise slot.
   expires_at      TEXT NOT NULL,
-  paid_at         TEXT
+  paid_at         TEXT,
+
+  -- An address is required if and only if a carrier is involved. Enforced in
+  -- the schema so no code path can create a shippable order with nowhere to
+  -- ship it, and so a pickup order is not forced to invent a fake address.
+  CHECK (
+    fulfilment = 'pickup'
+    OR (ship_line1 IS NOT NULL AND ship_city IS NOT NULL
+        AND ship_state IS NOT NULL AND ship_pincode IS NOT NULL)
+  )
 ) STRICT;
 
 -- THE COLLISION GUARANTEE.
@@ -170,23 +185,31 @@ CREATE TABLE order_item (
 -- These tables only record EVIDENCE that it moved.
 --------------------------------------------------------------------------------
 
--- Credit alerts parsed out of DKIM-verified bank email.
+-- Evidence we saw but did NOT act on: either it matched no open order, or
+-- policy said a human must look first. Never discarded — an unresolved credit
+-- is either a customer owed goods or a bug in our own matching.
 CREATE TABLE bank_credit (
-  -- The UTR (Unique Transaction Reference / RRN) is a 12-digit value generated
-  -- by NPCI. It is the one identifier neither party controls and both can see.
-  -- PRIMARY KEY here is what stops the same real payment being claimed twice.
-  utr           TEXT PRIMARY KEY,
-  amount_paise  INTEGER NOT NULL CHECK (amount_paise > 0),
-  credited_at   TEXT NOT NULL,
-  payer_vpa     TEXT,
-  narration     TEXT,
-  bank_id       TEXT NOT NULL,              -- which parser produced this
-  matched_order TEXT REFERENCES orders(id),
-  seen_at       TEXT NOT NULL DEFAULT (datetime('now'))
+  -- The UTR (Unique Transaction Reference / RRN) is a 12-digit value minted by
+  -- NPCI: the one identifier neither party controls and both can see. Sources
+  -- without a natural reference synthesise a stable one, e.g. 'cash:CG-000142'.
+  utr              TEXT PRIMARY KEY,
+  amount_paise     INTEGER NOT NULL CHECK (amount_paise > 0),
+  credited_at      TEXT NOT NULL,
+  payer_vpa        TEXT,
+  narration        TEXT,
+  bank_id          TEXT,
+  source           TEXT NOT NULL,           -- email | statement | claim | manual
+  confidence       TEXT NOT NULL
+                   CHECK (confidence IN ('ledger', 'alert', 'asserted', 'claimed')),
+  -- Set when we DID find the order but withheld settlement pending review.
+  candidate_order  TEXT REFERENCES orders(id),
+  unmatched_reason TEXT,
+  resolved_at      TEXT,
+  seen_at          TEXT NOT NULL DEFAULT (datetime('now'))
 ) STRICT;
 
-CREATE INDEX bank_credit_unmatched
-  ON bank_credit(amount_paise, credited_at) WHERE matched_order IS NULL;
+CREATE INDEX bank_credit_open
+  ON bank_credit(seen_at DESC) WHERE resolved_at IS NULL;
 
 -- Emails that arrived but did not parse. This is the template-drift tripwire:
 -- a cron counts these, and a non-zero count during business hours means a bank
@@ -200,20 +223,40 @@ CREATE TABLE unparsed_alert (
   seen_at    TEXT NOT NULL DEFAULT (datetime('now'))
 ) STRICT;
 
--- Provider-agnostic audit trail. A manual confirmation and an automatic
--- email match write the SAME row shape, so the order lifecycle downstream is
--- identical no matter which adapter verified the payment.
+-- Source-agnostic audit trail. A bank email, a statement row, a customer's UTR
+-- and a volunteer taking cash all write the SAME row, so everything downstream
+-- is identical regardless of how the payment was established.
 CREATE TABLE payment_event (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   order_id      TEXT NOT NULL REFERENCES orders(id),
-  provider      TEXT NOT NULL,              -- 'upi-email' | 'manual' | ...
-  kind          TEXT NOT NULL CHECK (kind IN ('verified', 'failed', 'refunded')),
-  reference     TEXT,                       -- UTR, or provider payment id
+  source        TEXT NOT NULL,              -- email | statement | claim | manual
+  confidence    TEXT NOT NULL
+                CHECK (confidence IN ('ledger', 'alert', 'asserted', 'claimed')),
+  -- UNIQUE on the reference ALONE, not (source, reference). The same UTR
+  -- arriving by email today and again in tomorrow's statement is the SAME
+  -- money; keying on the pair would settle it twice and decrement stock twice.
+  reference     TEXT NOT NULL UNIQUE,
   amount_paise  INTEGER NOT NULL,
-  actor         TEXT,                       -- admin email, for manual events
-  at            TEXT NOT NULL DEFAULT (datetime('now')),
-  -- Idempotency: replaying the same evidence is a no-op, not a double-credit.
-  UNIQUE (provider, reference)
+  bank_id       TEXT,
+  actor         TEXT,                       -- admin identity, for manual events
+  at            TEXT NOT NULL DEFAULT (datetime('now'))
+) STRICT;
+
+CREATE INDEX payment_event_by_order ON payment_event(order_id);
+
+-- Daily statement uploads. The statement is the account's own ledger, so a row
+-- in it is STRONGER evidence than a credit alert — slower, but authoritative.
+CREATE TABLE statement_import (
+  id           TEXT PRIMARY KEY,
+  bank_id      TEXT,
+  filename     TEXT NOT NULL,
+  row_count    INTEGER NOT NULL DEFAULT 0,
+  matched      INTEGER NOT NULL DEFAULT 0,
+  uploaded_by  TEXT,
+  uploaded_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Covers the window this file spans, so the UI can show gaps between uploads.
+  period_from  TEXT,
+  period_to    TEXT
 ) STRICT;
 
 --------------------------------------------------------------------------------
