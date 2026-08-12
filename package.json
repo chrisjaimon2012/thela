@@ -11,6 +11,7 @@
   "scripts": {
     "bank:selftest": "node ./scripts/bank-selftest.mjs",
     "build": "astro build",
+    "build:tracking": "node ./scripts/build-tracking-data.mjs",
     "db:migrate": "wrangler d1 migrations apply DB --remote",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:seed:apparel": "wrangler d1 execute DB --local --file=./seeds/apparel.sql",
