@@ -1,0 +1,72 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "thela",
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static assets are uploaded separately and do NOT count against the 3 MiB
+  // gzipped Worker bundle, and requests to them are free and unlimited. This
+  // is the single reason the whole shop fits the free tier: prerender every
+  // route you can, and keep the Worker to the JSON API and the admin.
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+
+  "observability": { "enabled": true },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "thela",
+      "database_id": "REPLACE_ME",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    // Product photography and generated shipping labels.
+    //
+    // Serve product images from an R2 CUSTOM DOMAIN, never through a Worker
+    // route. Piping images through the Worker is the one mistake that turns a
+    // comfortable free tier into an overage, and Cloudflare's terms separately
+    // reserve the right to limit free-plan CDN use for "a disproportionate
+    // percentage of pictures".
+    { "binding": "MEDIA", "bucket_name": "thela-media" },
+    { "binding": "LABELS", "bucket_name": "thela-labels" }
+  ],
+
+  // Native rate limiting, so we do not need Durable Objects in v1.
+  "ratelimits": [
+    { "name": "CHECKOUT_LIMIT", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
+    { "name": "UTR_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+  ],
+
+  "triggers": {
+    "crons": [
+      // Release stock held by orders that were never paid, which also frees
+      // their paise slot for reuse.
+      "*/5 * * * *",
+      // The dead-man's switch. Counts orders paid-but-undispatched, alerts
+      // that arrived but did not parse, and a carrier wallet running low.
+      // Without this, "zero maintenance" means "unmonitored".
+      "0 */6 * * *",
+      // Nightly: sync carrier serviceability, reconcile shipping charges.
+      "30 19 * * *"
+    ]
+  },
+
+  "vars": {
+    "SHOP_ENV": "production",
+    // The address bank alerts are forwarded to. Cloudflare Email Routing must
+    // be configured to send this address to this Worker.
+    "BANK_ALERT_ADDRESS": "pay@example.com"
+  }
+
+  // Secrets — set with `wrangler secret put`, never committed:
+  //   ADMIN_SETUP_TOKEN     gates first-run setup (see README, "first-run race")
+  //   DELHIVERY_TOKEN       carrier API token
+  //   RESEND_API_KEY        outbound transactional email
+  //   SESSION_SECRET        admin session signing
+}
