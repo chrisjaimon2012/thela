@@ -49,24 +49,23 @@ export default defineConfig({
     environments: {
       ssr: {
         optimizeDeps: {
-          // Pre-declare the passthrough image service.
+          // Do not pre-bundle Astro or the adapter for the server environment.
           //
-          // `imageService: 'passthrough'` above makes Astro pull in
-          // astro/assets/services/noop, but it is DISCOVERED after the dev
-          // server is already serving. Vite then re-optimises, the content hash
-          // in node_modules/.vite/deps_ssr changes, and the workerd runner is
-          // left holding the previous URL — every request afterwards dies with
-          // "The file does not exist at .../deps_ssr/<name>.js?v=<old hash>",
-          // which reads like a code error and is not one. Naming it here means
-          // it is bundled before the first request instead of during it.
-          include: ['astro/assets/services/noop'],
-          // And stop discovery re-running afterwards. Pre-declaring the image
-          // service fixes the FIRST start; any later change to the dependency
-          // graph — installing a package, adding an import — re-runs discovery,
-          // re-hashes the bundle, and strands the workerd runner on the old URL
-          // all over again. With discovery off, the include list above is the
-          // whole of it, and nothing re-hashes mid-session.
-          noDiscovery: true,
+          // Vite pre-bundles SSR dependencies into node_modules/.vite/deps_ssr
+          // under a content-hashed URL. Astro discovers several of its own
+          // modules late — the passthrough image service, the middleware
+          // virtual module, the adapter entrypoint — so the hash moves while
+          // the workerd runner is already holding the previous one, and every
+          // request afterwards dies with "The file does not exist at
+          // .../deps_ssr/<name>.js?v=<old hash>". It reads exactly like a code
+          // error and is not one; it cost an hour twice.
+          //
+          // Excluding beats pre-declaring, which only fixes the first start,
+          // and beats noDiscovery, which then starves genuinely new virtual
+          // modules. Pre-bundling exists to collapse many small CommonJS files
+          // into fewer requests; both of these are already ESM, so there is
+          // nothing to collapse and nothing lost.
+          exclude: ['astro', '@astrojs/cloudflare'],
         },
       },
     },
