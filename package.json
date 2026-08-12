@@ -18,8 +18,9 @@
     "db:seed:local": "wrangler d1 execute thela --local --file=./seeds/dev.sql",
     "bank:selftest": "node ./scripts/bank-selftest.mjs",
     "test": "vitest run && npm run test:schema",
-    "test:schema": "sqlite3 :memory: \".read migrations/0001_init.sql\" \".read tests/invariants.test.sql\"",
-    "typecheck": "astro check && tsc --noEmit"
+    "test:schema": "node ./scripts/test-schema.mjs",
+    "typecheck": "astro check && tsc --noEmit",
+    "db:seed:apparel": "wrangler d1 execute thela --local --file=./seeds/apparel.sql"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.2.1",

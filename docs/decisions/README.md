@@ -24,3 +24,7 @@ the old `Superseded by ADR-XXXX`. The value is the trail, not the tidiness.
 | [0013](0013-direct-carrier-over-aggregator.md) | Integrate a carrier directly, not an aggregator | Accepted |
 | [0014](0014-database-backed-admin.md) | Database-backed admin, not a git-based CMS | Accepted |
 | [0015](0015-apache-2-licence.md) | Licence under Apache-2.0 | Accepted |
+| [0016](0016-generic-catalogue-model.md) | A generic catalogue — named option axes, stock decoupled from variants | Accepted |
+| [0017](0017-global-first-india-first.md) | Global by construction, India first by sequence | Accepted |
+| [0018](0018-verification-first-payments.md) | Verify payments rather than process them | Accepted |
+| [0019](0019-ship-an-app-not-an-integration.md) | Ship an app you deploy, not a package you install | Accepted |
