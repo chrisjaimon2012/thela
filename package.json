@@ -17,7 +17,8 @@
     "db:migrate": "wrangler d1 migrations apply thela --remote",
     "db:seed:local": "wrangler d1 execute thela --local --file=./migrations/seed.sql",
     "bank:selftest": "node ./scripts/bank-selftest.mjs",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:schema",
+    "test:schema": "sqlite3 :memory: \".read migrations/0001_init.sql\" \".read migrations/invariants.test.sql\"",
     "typecheck": "astro check && tsc --noEmit"
   },
   "dependencies": {
