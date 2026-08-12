@@ -14,9 +14,9 @@ export default defineConfig({
   output: 'server',
 
   adapter: cloudflare({
-    // Gives `astro dev` real bindings from wrangler.jsonc, so local dev talks
-    // to a local D1 rather than a mock.
-    platformProxy: { enabled: true },
+    // Local dev gets real bindings automatically: the Cloudflare vite plugin
+    // reads wrangler.jsonc, so `astro dev` talks to a local D1 rather than a
+    // mock. (The old `platformProxy` option was removed in adapter v14.)
 
     // Cloudflare Images is a paid product and we do not need it: product
     // photography is uploaded already-sized and served straight from an R2

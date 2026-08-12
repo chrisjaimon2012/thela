@@ -12,7 +12,7 @@
  * mean adding a matching path.
  */
 
-export type Paise = number;
+export type Minor = number;
 
 /**
  * How much a piece of evidence is worth. This is the whole trust model.
@@ -43,7 +43,7 @@ export interface Evidence {
    * Absent only for cash, where the actor is the reference.
    */
   reference: string;
-  amountPaise: Paise;
+  amountMinor: Minor;
   /** ISO 8601. When the money moved, not when we heard about it. */
   at: string;
   payerVpa?: string;

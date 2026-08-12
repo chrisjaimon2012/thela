@@ -32,9 +32,9 @@ export async function resolve(db: D1Database, ev: Evidence): Promise<Resolution>
   const order = await db
     .prepare(
       `SELECT id, created_at FROM orders
-        WHERE status = 'awaiting_payment' AND amount_due_paise = ?1`,
+        WHERE status = 'awaiting_payment' AND amount_due_minor = ?1`,
     )
-    .bind(ev.amountPaise)
+    .bind(ev.amountMinor)
     .first<{ id: string; created_at: string }>();
 
   if (!order) {
@@ -81,7 +81,7 @@ export async function settle(
     db
       .prepare(
         `INSERT INTO payment_event
-           (order_id, source, confidence, reference, amount_paise, actor, bank_id)
+           (order_id, source, confidence, reference, amount_minor, actor, bank_id)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
       )
       .bind(
@@ -89,7 +89,7 @@ export async function settle(
         ev.source,
         ev.confidence,
         ev.reference,
-        ev.amountPaise,
+        ev.amountMinor,
         ev.actor ?? null,
         ev.bankId ?? null,
       ),
@@ -99,7 +99,7 @@ export async function settle(
     ...lines.map((l) =>
       db
         .prepare(
-          `UPDATE stock
+          `UPDATE stock_item
               SET on_hand    = CASE WHEN tracked = 1 THEN on_hand  - ?2 ELSE on_hand  END,
                   reserved   = CASE WHEN tracked = 1 THEN reserved - ?2 ELSE reserved END,
                   updated_at = datetime('now')
@@ -131,14 +131,14 @@ function recordUnmatched(
 ) {
   return db
     .prepare(
-      `INSERT OR IGNORE INTO bank_credit
-         (utr, amount_paise, credited_at, payer_vpa, narration, bank_id,
+      `INSERT OR IGNORE INTO credit_evidence
+         (utr, amount_minor, credited_at, payer_vpa, narration, bank_id,
           source, confidence, candidate_order, unmatched_reason)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
     )
     .bind(
       ev.reference,
-      ev.amountPaise,
+      ev.amountMinor,
       ev.at,
       ev.payerVpa ?? null,
       ev.narration ?? null,

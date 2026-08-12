@@ -32,7 +32,7 @@
       "//2": "is at or below this ceiling. A false positive should cost one item,",
       "//3": "not a bulk order. Shopkeepers can raise it once they trust it.",
       "onlyTrust": ["verified"],
-      "maxAmountPaise": 300000
+      "maxAmountMinor": 300000
     },
 
     "forwardCopyTo": {

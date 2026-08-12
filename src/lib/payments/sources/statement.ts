@@ -11,7 +11,7 @@
  * saves a large dependency that would not fit a Worker bundle anyway.
  */
 
-import { parseINR } from '../amount';
+import { parseMoney } from '../../money';
 import { resolve } from '../resolve';
 import type { Resolution } from '../types';
 
@@ -26,7 +26,7 @@ const COLUMNS = {
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
 
 export interface StatementRow {
-  amountPaise: number;
+  amountMinor: number;
   reference: string;
   at: string;
   narration?: string;
@@ -42,7 +42,7 @@ export function parseStatement(csv: string): StatementRow[] {
   const rows = parseCsv(csv);
   if (rows.length < 2) return [];
 
-  const header = rows[0].map(norm);
+  const header = (rows[0] ?? []).map(norm);
   const at = (names: readonly string[]) =>
     header.findIndex((h) => names.some((n) => h === n || h.startsWith(n)));
 
@@ -54,8 +54,8 @@ export function parseStatement(csv: string): StatementRow[] {
 
   const out: StatementRow[] = [];
   for (const row of rows.slice(1)) {
-    const amountPaise = parseINR(row[iCredit] ?? '');
-    if (!amountPaise) continue; // blank credit column means it was a debit
+    const amountMinor = parseMoney(row[iCredit] ?? '');
+    if (!amountMinor) continue; // blank credit column means it was a debit
 
     const narration = iNarr >= 0 ? row[iNarr] : undefined;
     // Prefer an explicit reference column; otherwise recover the 12-digit UPI
@@ -69,7 +69,7 @@ export function parseStatement(csv: string): StatementRow[] {
     const at = parseDate(row[iDate]);
     if (!at) continue;
 
-    out.push({ amountPaise, reference, at, narration });
+    out.push({ amountMinor, reference, at, narration });
   }
   return out;
 }
@@ -88,7 +88,7 @@ export async function importStatement(
         source: 'statement',
         confidence: 'ledger',
         reference: r.reference,
-        amountPaise: r.amountPaise,
+        amountMinor: r.amountMinor,
         at: r.at,
         narration: r.narration,
         bankId: meta.bankId,
@@ -148,19 +148,28 @@ function parseCsv(text: string): string[][] {
 }
 
 /**
- * Indian statements are overwhelmingly day-first (28/07/2026, 28-07-2026,
- * 28 Jul 2026). Statements often carry no time at all, which is fine: the
- * unique paise slot identifies the order and the date bounds the window.
+ * Statements are day-first almost everywhere except the US (28/07/2026,
+ * 28-07-2026, 28 Jul 2026), so that is the default reading. Pass
+ * `dayFirst: false` for a US statement.
+ *
+ * Getting this wrong is survivable but not free: the minor-unit slot is what
+ * actually identifies the order, and the date only bounds the match window, so
+ * a swapped day and month shifts a transaction by days rather than mismatching
+ * it. Rows outside the window land in review, never on the wrong order.
+ *
+ * Statements frequently carry no time at all, hence midnight UTC.
  */
-function parseDate(raw?: string): string | null {
+function parseDate(raw?: string, dayFirst = true): string | null {
   if (!raw) return null;
   const s = raw.trim();
 
-  const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
-  if (dmy) {
-    const [, d, m, y] = dmy;
-    const year = y.length === 2 ? `20${y}` : y;
-    return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00Z`;
+  const numeric = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+  if (numeric) {
+    const [, first = '', second = '', rawYear = ''] = numeric;
+    const day = dayFirst ? first : second;
+    const month = dayFirst ? second : first;
+    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00Z`;
   }
 
   const parsed = Date.parse(s);
