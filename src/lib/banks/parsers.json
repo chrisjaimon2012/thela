@@ -1,88 +1,185 @@
 {
   "_readme": [
-    "Bank credit-alert parsers, as DATA rather than code, so a shopkeeper can",
-    "update them without redeploying and so the community can contribute a bank",
+    "Bank credit-alert parsers, as DATA rather than code, so a shopkeeper can fix",
+    "a broken pattern without redeploying and so the community can add a bank",
     "without touching TypeScript.",
     "",
-    "!! EVERY PATTERN BELOW IS A PLACEHOLDER. !!",
+    "TWO THINGS TO UNDERSTAND BEFORE TRUSTING ANY OF THIS",
     "",
-    "No public source documents the exact body of an Indian bank's UPI credit",
-    "alert email. These were written from the shape such alerts are reported to",
-    "take, and MUST be replaced with patterns derived from real samples before",
-    "any shop takes a real payment. Run `npm run bank:selftest` (pay yourself",
-    "Rs 1) and paste the captured alert into `docs/bank-samples/` first.",
+    "1. India does not mandate email alerts. RBI/2017-18/15 (6 July 2017) para 5:",
+    "   'The SMS alerts shall mandatorily be sent to the customers, while email",
+    "   alerts may be sent, wherever registered.' There is no regulatory floor,",
+    "   so per-bank behaviour varies wildly and no blanket promise is possible.",
     "",
-    "Shipping a wrong pattern here does not fail loudly. It fails by never",
-    "matching, which looks exactly like 'no customer has paid yet'."
+    "2. A DKIM-valid 'credited' email is NOT proof that money settled. RBL Bank",
+    "   was documented (Moneylife, 1 July 2026) firing 'Account Credited' e-alerts",
+    "   where 47 of 54 corresponded to no credit in the statement — the bank",
+    "   confirmed they fire on declined transactions and internal reversals.",
+    "   Authenticating the sender proves the bank sent it. It does not prove the",
+    "   bank was right. That is why `trust` exists below."
   ],
 
-  "version": 1,
+  "version": 2,
 
   "defaults": {
     "timeWindowMinutes": 180,
     "requireDkimPass": true,
-    "requireFromMatch": true
+    "requireDkimDomainMatch": true,
+    "requireFromMatch": false,
+
+    "autoConfirm": {
+      "//": "Auto-dispatch happens only when the bank is `verified` AND the order",
+      "//2": "is at or below this ceiling. A false positive should cost one item,",
+      "//3": "not a bulk order. Shopkeepers can raise it once they trust it.",
+      "onlyTrust": ["verified"],
+      "maxAmountPaise": 300000
+    },
+
+    "forwardCopyTo": {
+      "//": "Several banks (HDFC confirmed) have no alerts-only address — changing",
+      "//2": "the alert email changes the PRIMARY email across every relationship,",
+      "//3": "so statements and service notices land here too. The Email Worker",
+      "//4": "forwards a copy onward so the account holder keeps their visibility.",
+      "enabled": true
+    }
+  },
+
+  "trustLevels": {
+    "verified": "UPI credit emails confirmed from a primary source, with no minimum-amount threshold. May auto-confirm.",
+    "unverified": "Email channel exists but UPI-credit behaviour is unconfirmed. Requires a passing self-test; never auto-confirms until an admin has confirmed one alert manually.",
+    "unsuitable": "Known not to work for this design — no email on UPI credit, or a threshold above typical order values.",
+    "unreliable": "Sends credit emails that do not reliably correspond to settled money. Never auto-confirms, at any amount."
   },
 
   "banks": [
     {
       "id": "hdfc",
       "name": "HDFC Bank",
-      "status": "unverified",
-      "from": ["alerts@hdfcbank.net", "alerts@hdfcbank.com"],
-      "dkimDomains": ["hdfcbank.net", "hdfcbank.com"],
-      "subjectHints": ["credited", "UPI"],
+      "trust": "verified",
+      "recommended": true,
+      "from": ["alerts@hdfcbank.net", "alerts@hdfcbank.bank.in"],
+      "dkimDomains": ["hdfcbank.net", "hdfcbank.bank.in", "hdfcbank.com"],
+      "subjectHints": ["UPI", "credit"],
       "patterns": {
         "amount": "(?:Rs\\.?|INR)\\s*([0-9][0-9,]*\\.[0-9]{2})",
-        "utr": "(?:UPI|RRN|Ref(?:erence)?(?:\\s*No\\.?)?)[^0-9]{0,20}([0-9]{12})",
+        "utr": "UPI\\s+transaction\\s+reference\\s+number\\s+is\\s+([0-9]{12})",
+        "utrFallback": "\\b([0-9]{12})\\b",
         "payerVpa": "(?:from|by)\\s+(?:VPA\\s+)?([A-Za-z0-9._-]+@[A-Za-z][A-Za-z0-9]+)",
-        "credit": "credited"
+        "credit": "(?:has been credited|credited to)"
       },
       "notes": [
-        "HDFC stopped SMS alerts for UPI credits under Rs 500 on 25 June 2024",
-        "while explicitly continuing EMAIL alerts for all UPI transactions.",
-        "This is the only bank for which continued email alerting on UPI credits",
-        "is confirmed from a primary source. Configure alerts via NetBanking >",
-        "InstaAlerts."
+        "The only bank confirmed to high confidence. When HDFC imposed SMS",
+        "thresholds from 25 June 2024 (no SMS for UPI sent <= Rs 100 or received",
+        "< Rs 500) it explicitly continued EMAIL for ALL UPI transactions. A user",
+        "on the same announcement thread reports email arriving for a Rs 10 UPI",
+        "payment, i.e. no email threshold. Email alerts are free; only SMS",
+        "InstaAlerts are charged.",
+        "",
+        "TWO SENDER DOMAINS ARE LIVE CONCURRENTLY. Indian banks migrated to the",
+        "RBI-designated bank.in domains during 2025, so alerts@hdfcbank.net and",
+        "alerts@hdfcbank.bank.in are both observed. Match on the DKIM d= value,",
+        "never on the From header.",
+        "",
+        "NO ALERTS-ONLY ADDRESS. Updating the alert email updates the PRIMARY",
+        "email across every HDFC relationship. Forwarding a copy onward is not",
+        "optional for this bank.",
+        "",
+        "Configure: NetBanking > InstaAlerts > select account > alert types.",
+        "",
+        "The verified sample is a DEBIT alert. Credit wording is assumed",
+        "symmetric and MUST be confirmed by the setup self-test before use."
+      ]
+    },
+
+    {
+      "id": "icici",
+      "name": "ICICI Bank",
+      "trust": "unsuitable",
+      "from": [],
+      "dkimDomains": ["icicibank.com", "icici.bank.in"],
+      "patterns": {},
+      "notes": [
+        "ICICI's own alerts page scopes EMAIL alerts to NRI customers. Resident",
+        "savings customers are offered SMS, with a user-set credit threshold that",
+        "defaults to Rs 5,000 — far above a typical small-shop order.",
+        "Not usable for automatic verification. Use manual mode, or bank elsewhere."
       ]
     },
 
     {
       "id": "sbi",
       "name": "State Bank of India",
-      "status": "unverified",
+      "trust": "unsuitable",
       "from": [],
       "dkimDomains": ["sbi.co.in"],
-      "subjectHints": ["credit", "UPI"],
-      "patterns": {
-        "amount": "(?:Rs\\.?|INR)\\s*([0-9][0-9,]*\\.[0-9]{2})",
-        "utr": "(?:UPI|Ref)[^0-9]{0,20}([0-9]{12})",
-        "payerVpa": "([A-Za-z0-9._-]+@[A-Za-z][A-Za-z0-9]+)",
-        "credit": "credited"
-      },
-      "notes": ["Sender address and body format unconfirmed."]
+      "patterns": {},
+      "notes": [
+        "The product is branded 'SMS Alert' and carries a Rs 5,000 minimum credit",
+        "threshold. Multiple user reports say SBI does not fire credit alerts for",
+        "inward UPI at all unless the payer used an @sbi / @oksbi handle.",
+        "Not usable for automatic verification."
+      ]
     },
 
     {
-      "id": "icici",
-      "name": "ICICI Bank",
-      "status": "unverified",
+      "id": "rbl",
+      "name": "RBL Bank",
+      "trust": "unreliable",
       "from": [],
-      "dkimDomains": ["icicibank.com"],
-      "subjectHints": ["credit", "UPI"],
-      "patterns": {
-        "amount": "(?:Rs\\.?|INR)\\s*([0-9][0-9,]*\\.[0-9]{2})",
-        "utr": "(?:UPI|RRN|Ref)[^0-9]{0,20}([0-9]{12})",
-        "payerVpa": "([A-Za-z0-9._-]+@[A-Za-z][A-Za-z0-9]+)",
-        "credit": "credited"
-      },
-      "notes": ["Sender address and body format unconfirmed."]
+      "dkimDomains": ["rblbank.com", "rbl.bank.in"],
+      "patterns": {},
+      "notes": [
+        "DO NOT AUTO-CONFIRM ON THIS BANK AT ANY AMOUNT.",
+        "",
+        "RBL sends DKIM-signed 'E-alert from RBL Bank Account Credited' emails",
+        "carrying amount, reference number and balance. Moneylife documented",
+        "(1 July 2026) a case where 47 of 54 such emails corresponded to NO credit",
+        "in the statement; the bank confirmed they fire for declined transactions",
+        "and internal reversals.",
+        "",
+        "This is the reason trust tiers exist. Sender authentication proves the",
+        "bank sent the mail. It does not prove the bank was correct."
+      ]
+    },
+
+    {
+      "id": "indusind",
+      "name": "IndusInd Bank",
+      "trust": "unsuitable",
+      "from": [],
+      "dkimDomains": ["indusind.com"],
+      "patterns": {},
+      "notes": [
+        "IndusInd's own current-account form offers email for daily and monthly",
+        "e-statements only, not per-transaction alerts."
+      ]
+    },
+
+    {
+      "id": "kotak",   "name": "Kotak Mahindra Bank", "trust": "unverified",
+      "from": [], "dkimDomains": ["kotak.com", "kotak.bank.in"], "patterns": {},
+      "notes": ["Email channel exists; UPI-credit behaviour and thresholds unconfirmed. Self-test required."]
+    },
+    {
+      "id": "axis",    "name": "Axis Bank",            "trust": "unverified",
+      "from": [], "dkimDomains": ["axisbank.com", "axis.bank.in"], "patterns": {},
+      "notes": ["Email channel exists; UPI-credit behaviour and thresholds unconfirmed. Self-test required."]
+    },
+    {
+      "id": "federal", "name": "Federal Bank",         "trust": "unverified",
+      "from": [], "dkimDomains": ["federalbank.co.in"], "patterns": {},
+      "notes": ["Email channel exists; UPI-credit behaviour and thresholds unconfirmed. Self-test required."]
+    },
+    {
+      "id": "idfcfirst", "name": "IDFC FIRST Bank",    "trust": "unverified",
+      "from": [], "dkimDomains": ["idfcfirstbank.com"], "patterns": {},
+      "notes": ["Email channel exists; UPI-credit behaviour and thresholds unconfirmed. Self-test required."]
     },
 
     {
       "id": "generic",
       "name": "Generic fallback",
-      "status": "fallback",
+      "trust": "unverified",
       "from": [],
       "dkimDomains": [],
       "subjectHints": ["credit"],
@@ -93,10 +190,9 @@
         "credit": "credit"
       },
       "notes": [
-        "Never auto-confirms. A generic-parsed alert is written to bank_credit",
-        "but flagged low-confidence, and the admin must confirm the first one",
-        "from a given sender. After a confirmation the admin UI offers to save",
-        "the learned pattern as a new bank entry."
+        "Never auto-confirms. Writes the credit as low-confidence and asks the",
+        "admin to confirm the first alert from a given sender, then offers to",
+        "save the learned pattern as a new bank entry."
       ]
     }
   ]
