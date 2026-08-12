@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import { getProduct } from '../../lib/catalogue';
 import { loadSettings, mediaUrl } from '../../lib/settings';
-import { formatINR } from '../../lib/money';
+import { formatMoney } from '../../lib/money';
 import { env } from 'cloudflare:workers';
 
 const { slug } = Astro.params;
@@ -22,7 +22,7 @@ const axis = (pick: (v: (typeof product.variants)[number]) => string | null) => 
 const sizes = axis((v) => v.option1);
 const colours = axis((v) => v.option2);
 
-const cheapest = Math.min(...product.variants.map((v) => v.pricePaise));
+const cheapest = Math.min(...product.variants.map((v) => v.priceMinor));
 const anyAvailable = product.variants.some((v) => v.available);
 
 Astro.response.headers.set(
@@ -51,7 +51,7 @@ Astro.response.headers.set(
 
     <div class="measure">
       <h1 style="margin:0 0 .35rem;font-size:1.6rem;letter-spacing:-.015em">{product.title}</h1>
-      <p class="price" style="font-size:1.15rem;margin:0 0 1rem">₹{formatINR(cheapest)}</p>
+      <p class="price" style="font-size:1.15rem;margin:0 0 1rem">₹{formatMoney(cheapest)}</p>
 
       {product.summary && <p class="muted">{product.summary}</p>}
 

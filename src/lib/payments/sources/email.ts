@@ -58,8 +58,8 @@ export async function handleBankEmail(
     return null;
   }
 
-  const { amountPaise, utr, payerVpa } = extract(body, bank);
-  if (!amountPaise || !utr) {
+  const { amountMinor, utr, payerVpa } = extract(body, bank);
+  if (!amountMinor || !utr) {
     // Parsed as a credit but the fields did not come out — this is what
     // template drift looks like, and the cron watches this table for it.
     await quarantine(env.DB, message, 'fields_missing', body);
@@ -71,7 +71,7 @@ export async function handleBankEmail(
     source: 'email',
     confidence: 'alert',
     reference: utr,
-    amountPaise,
+    amountMinor,
     at: new Date(email.date ?? Date.now()).toISOString(),
     payerVpa,
     narration: email.subject,

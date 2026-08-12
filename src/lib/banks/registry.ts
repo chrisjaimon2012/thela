@@ -7,8 +7,8 @@
  */
 
 import doc from './parsers.json';
-import { parseINR } from '../money';
-import type { Confidence, Paise } from '../payments/types';
+import { parseMoney } from '../money';
+import type { Confidence, Minor } from '../payments/types';
 
 export type Trust = 'verified' | 'unverified' | 'unsuitable' | 'unreliable';
 
@@ -23,7 +23,7 @@ export interface BankProfile {
 }
 
 export interface Extracted {
-  amountPaise?: Paise;
+  amountMinor?: Minor;
   utr?: string;
   payerVpa?: string;
 }
@@ -62,12 +62,14 @@ export function bankByDkim(dkimDomain: string): BankProfile | undefined {
 /** Pull whatever fields the profile knows how to find. Missing is not an error. */
 export function extract(text: string, bank: BankProfile): Extracted {
   const p = { ...GENERIC.patterns, ...bank.patterns };
-  const one = (key: string): string | undefined =>
-    p[key] ? (text.match(rx(p[key]))?.[1] ?? undefined) : undefined;
+  const one = (key: string): string | undefined => {
+    const pattern = p[key];
+    return pattern ? (text.match(rx(pattern))?.[1] ?? undefined) : undefined;
+  };
 
   const amountRaw = one('amount');
   return {
-    amountPaise: amountRaw ? (parseINR(amountRaw) ?? undefined) : undefined,
+    amountMinor: amountRaw ? (parseMoney(amountRaw) ?? undefined) : undefined,
     utr: one('utr') ?? one('utrFallback'),
     payerVpa: one('payerVpa'),
   };
@@ -76,7 +78,7 @@ export function extract(text: string, bank: BankProfile): Extracted {
 /** Does this text look like money arriving, rather than leaving? */
 export function looksLikeCredit(text: string, bank: BankProfile): boolean {
   const pattern = bank.patterns.credit ?? GENERIC.patterns.credit;
-  return rx(pattern).test(text);
+  return pattern ? rx(pattern).test(text) : false;
 }
 
 export interface AutoSettleDecision {
@@ -101,9 +103,9 @@ export interface AutoSettleDecision {
 export function mayAutoSettle(input: {
   confidence: Confidence;
   bankId?: string;
-  amountPaise: Paise;
+  amountMinor: Minor;
 }): AutoSettleDecision {
-  const { confidence, bankId, amountPaise } = input;
+  const { confidence, bankId, amountMinor } = input;
 
   if (confidence === 'ledger' || confidence === 'asserted') return { auto: true };
   if (confidence === 'claimed') return { auto: false, why: 'customer_claim' };
@@ -112,7 +114,7 @@ export function mayAutoSettle(input: {
   if (bank?.trust === 'unreliable') return { auto: false, why: 'bank_unreliable' };
   if (!bank || !DEFAULTS.autoConfirm.onlyTrust.includes(bank.trust))
     return { auto: false, why: 'bank_unverified' };
-  if (amountPaise > DEFAULTS.autoConfirm.maxAmountPaise)
+  if (amountMinor > DEFAULTS.autoConfirm.maxAmountMinor)
     return { auto: false, why: 'above_auto_ceiling' };
 
   return { auto: true };

@@ -10,13 +10,13 @@
  *  - It is NOT locked. Whether the payer may edit it is decided by their app,
  *    not by us; locking requires a signed intent with an NPCI-issued org id,
  *    unavailable to an individual merchant. An edited amount simply fails to
- *    match an open order and falls through to review — which is why the paise
- *    slot is a matching key and never a security control.
+ *    match an open order and falls through to review — which is why the
+ *    minor-unit slot is a matching key and never a security control.
  *  - There is no collect/pull option. NPCI abolished P2P collect from
  *    1 Oct 2025, and merchant collect can only be initiated by a PSP.
  */
 
-import type { Paise } from './types';
+import type { Minor } from './types';
 
 export interface UpiTarget {
   /** The merchant's own VPA. Funds land here directly. */
@@ -25,11 +25,11 @@ export interface UpiTarget {
 }
 
 export interface UpiRequest extends UpiTarget {
-  amountPaise: Paise;
+  amountMinor: Minor;
   /**
    * Order reference. Some banks surface the payer's note in the credit
    * narration, which would give us a true order reference instead of relying
-   * on the paise slot — unconfirmed, so it is a bonus signal, never the plan.
+   * on the minor-unit slot — unconfirmed, so it is a bonus signal, never the plan.
    */
   note?: string;
 }
@@ -39,11 +39,11 @@ export interface UpiRequest extends UpiTarget {
  *
  * Render it as a link on mobile (opens the UPI app) and as a QR on desktop.
  */
-export function upiUri({ vpa, payeeName, amountPaise, note }: UpiRequest): string {
+export function upiUri({ vpa, payeeName, amountMinor, note }: UpiRequest): string {
   const params = new URLSearchParams({
     pa: vpa,
     pn: payeeName,
-    am: (amountPaise / 100).toFixed(2),
+    am: (amountMinor / 100).toFixed(2),
     cu: 'INR',
   });
   if (note) params.set('tn', note);

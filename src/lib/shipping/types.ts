@@ -18,7 +18,7 @@
  *    aggregators hand back a hosted PDF URL.
  */
 
-export type Paise = number;
+export type Minor = number;
 
 export interface Address {
   name: string;
@@ -35,7 +35,7 @@ export interface Parcel {
   lenMm: number;
   widMm: number;
   hgtMm: number;
-  declaredValuePaise: Paise;
+  declaredValueMinor: Minor;
 }
 
 /**
@@ -58,7 +58,7 @@ export interface Serviceability {
 }
 
 export interface Quote {
-  amountPaise: Paise;
+  amountMinor: Minor;
   gstIncluded: boolean;
   /** True when the carrier disclaims the figure. Do not bill against it. */
   estimatedOnly: boolean;
@@ -80,7 +80,7 @@ export interface LabelData {
   orderId: string;
   weightG: number;
   paymentMode: 'Prepaid' | 'COD';
-  amountPaise?: Paise;
+  amountMinor?: Minor;
   sortCode?: string;
   routingCode?: string;
 }
@@ -147,5 +147,5 @@ export interface ShippingAdapter {
    * ships — the worst failure the system can have. A cron watches this and
    * alarms the shopkeeper long before it hits zero.
    */
-  walletBalance?(): Promise<Paise>;
+  walletBalance?(): Promise<Minor>;
 }

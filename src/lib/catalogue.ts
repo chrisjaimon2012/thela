@@ -6,13 +6,13 @@
  * one place.
  */
 
-import type { Paise } from './payments/types';
+import type { Minor } from './payments/types';
 
 export interface ProductCard {
   slug: string;
   title: string;
   summary: string | null;
-  fromPaise: Paise;
+  fromMinor: Minor;
   imageKey: string | null;
   /** False when every variant is out of stock, so the card can say so. */
   anyAvailable: boolean;
@@ -23,7 +23,8 @@ export interface Variant {
   sku: string;
   option1: string | null;
   option2: string | null;
-  pricePaise: Paise;
+  option3: string | null;
+  priceMinor: Minor;
   weightG: number;
   lenMm: number;
   widMm: number;
@@ -38,6 +39,8 @@ export interface ProductDetail {
   summary: string | null;
   bodyMd: string | null;
   meta: Record<string, unknown>;
+  /** The vendor's own axis names, in order: ["Size", "Colour"]. Empty = no picker. */
+  optionNames: string[];
   variants: Variant[];
   imageKeys: string[];
 }
@@ -55,14 +58,14 @@ export async function listProducts(db: D1Database): Promise<ProductCard[]> {
       `SELECT p.slug,
               p.title,
               p.summary,
-              MIN(v.price_paise)                        AS fromPaise,
+              MIN(v.price_minor)                        AS fromMinor,
               MAX(${AVAILABLE_SQL})                     AS anyAvailable,
               (SELECT r2_key FROM product_image i
                 WHERE i.product_id = p.id
                 ORDER BY i.position LIMIT 1)            AS imageKey
          FROM product p
          JOIN variant v ON v.product_id = p.id AND v.active = 1
-         JOIN stock   s ON s.sku = v.sku
+         JOIN stock_item   s ON s.sku = v.sku
         WHERE p.status = 'active'
         GROUP BY p.id
         ORDER BY p.created_at DESC`,
@@ -89,17 +92,17 @@ export async function getProduct(
 
   if (!product) return null;
 
-  // One round trip for both child collections.
-  const [variantsRes, imagesRes] = await db.batch<Record<string, unknown>>([
+  // One round trip for all three child collections.
+  const batch = await db.batch<Record<string, unknown>>([
     db
       .prepare(
         `SELECT v.id, v.sku,
-                v.option_1 AS option1, v.option_2 AS option2,
-                v.price_paise AS pricePaise,
+                v.option_1 AS option1, v.option_2 AS option2, v.option_3 AS option3,
+                v.price_minor AS priceMinor,
                 v.weight_g AS weightG, v.len_mm AS lenMm,
                 v.wid_mm AS widMm, v.hgt_mm AS hgtMm,
                 ${AVAILABLE_SQL} AS available
-           FROM variant v JOIN stock s ON s.sku = v.sku
+           FROM variant v JOIN stock_item s ON s.sku = v.sku
           WHERE v.product_id = ?1 AND v.active = 1
           ORDER BY v.position`,
       )
@@ -109,7 +112,16 @@ export async function getProduct(
         `SELECT r2_key FROM product_image WHERE product_id = ?1 ORDER BY position`,
       )
       .bind(product.id),
+    db
+      .prepare(
+        `SELECT name FROM product_option WHERE product_id = ?1 ORDER BY position`,
+      )
+      .bind(product.id),
   ]);
+
+  // `batch()` returns one result per statement, in order. Read them by index
+  // rather than destructuring so a shape change is a cast error, not a crash.
+  const rows = <T,>(i: number): T[] => (batch[i]?.results ?? []) as unknown as T[];
 
   return {
     id: product.id,
@@ -118,10 +130,12 @@ export async function getProduct(
     summary: product.summary,
     bodyMd: product.bodyMd,
     meta: safeJson(product.metaJson),
-    variants: (variantsRes.results as unknown as (Variant & { available: number })[]).map(
-      (v) => ({ ...v, available: v.available === 1 }),
-    ),
-    imageKeys: (imagesRes.results as unknown as { r2_key: string }[]).map((i) => i.r2_key),
+    optionNames: rows<{ name: string }>(2).map((o) => o.name),
+    variants: rows<Omit<Variant, 'available'> & { available: number }>(0).map((v) => ({
+      ...v,
+      available: v.available === 1,
+    })),
+    imageKeys: rows<{ r2_key: string }>(1).map((i) => i.r2_key),
   };
 }
 
