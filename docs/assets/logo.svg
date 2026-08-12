@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 96" role="img" aria-label="thela">
+  <title>thela</title>
+  <!--
+    The handcart a great many Indian businesses start from, and the reason for
+    the name. Deck, four wheels, one handle — no fills, currentColor only, so
+    it works on a light or dark README without a second asset.
+  -->
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke-width="4">
+      <!-- deck -->
+      <path d="M10 38h74" />
+      <path d="M10 38v10h74V38" />
+      <!-- plank seams -->
+      <path d="M28 38v10M46 38v10M64 38v10" stroke-width="2" opacity=".45" />
+      <!-- handle -->
+      <path d="M84 40l14-10" />
+      <!-- axle -->
+      <path d="M20 62h54" stroke-width="3" />
+    </g>
+    <g stroke-width="3.4">
+      <circle cx="28" cy="66" r="15" />
+      <circle cx="66" cy="66" r="15" />
+      <g stroke-width="1.8" opacity=".7">
+        <path d="M28 51v30M13 66h30M17.4 55.4l21.2 21.2M38.6 55.4L17.4 76.6" />
+        <path d="M66 51v30M51 66h30M55.4 55.4l21.2 21.2M76.6 55.4L55.4 76.6" />
+      </g>
+      <circle cx="28" cy="66" r="2.6" fill="currentColor" stroke="none" />
+      <circle cx="66" cy="66" r="2.6" fill="currentColor" stroke="none" />
+    </g>
+  </g>
+
+  <text x="118" y="70" font-family="ui-serif, Iowan Old Style, Palatino, Georgia, serif"
+        font-size="52" font-weight="600" letter-spacing="-1.5" fill="currentColor">thela</text>
+</svg>
