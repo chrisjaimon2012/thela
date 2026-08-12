@@ -89,11 +89,20 @@ Explain *why*, not *what* — the diff already says what. If a change fixes
 something subtle, say what would have gone wrong. Good examples are in
 `git log`; the SMS and idempotency commits are the pattern to follow.
 
-End with:
+**No `Co-Authored-By` trailer**, for Claude or any other tool. Commits are
+authored by the person who decided the change, and the history was rewritten
+once already to remove them. Do not reintroduce it.
+
+The identity is set per-repo and is deliberately the GitHub noreply address:
 
 ```
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Chris Jaimon <57173930+chrisjaimon2012@users.noreply.github.com>
 ```
+
+Not `chrisjaimon2012@gmail.com` — that address is registered to a *different*
+GitHub account (`chrisEight`), so GitHub attributes any commit bearing it to
+that account instead. The noreply form is tied to the account id and cannot be
+misattributed. It also keeps a personal address out of a public repository.
 
 ## Things that will bite you
 
