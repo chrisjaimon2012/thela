@@ -40,6 +40,21 @@ export interface Settings {
   /** "GST", "VAT", "Sales tax" — whatever the vendor's regime calls it. */
   taxLabel: string;
   taxNumber: string;
+
+  // Appearance. Validated at render time in `lib/theme.ts`, never here — a row
+  // edited straight in the D1 console must not reach the stylesheet unchecked.
+  themePreset: string;
+  themeMode: string;
+  /** Empty means "whatever the preset says". The only colour a vendor picks. */
+  themeAccent: string;
+  themeFont: string;
+  themeRadius: string;
+  cardRatio: string;
+  cardFit: string;
+
+  logoKey: string;
+  /** Rendered height in px. Capped in the admin, not here. */
+  logoHeight: number;
 }
 
 const DEFAULTS: Settings = {
@@ -64,6 +79,15 @@ const DEFAULTS: Settings = {
   taxRateBp: 0,
   taxLabel: 'Tax',
   taxNumber: '',
+  themePreset: 'plain',
+  themeMode: 'auto',
+  themeAccent: '',
+  themeFont: '',
+  themeRadius: '',
+  cardRatio: '',
+  cardFit: '',
+  logoKey: '',
+  logoHeight: 32,
 };
 
 /** Maps `setting.key` onto the typed shape above. One place, so a typo is a type error. */
@@ -91,7 +115,19 @@ const READERS: Record<string, (v: string, s: Settings) => void> = {
   'tax.rate_bp': (v, s) => (s.taxRateBp = Number(v) || 0),
   'tax.label': (v, s) => (s.taxLabel = v),
   'tax.number': (v, s) => (s.taxNumber = v),
+  'theme.preset': (v, s) => (s.themePreset = v),
+  'theme.mode': (v, s) => (s.themeMode = v),
+  'theme.accent': (v, s) => (s.themeAccent = v),
+  'theme.font': (v, s) => (s.themeFont = v),
+  'theme.radius': (v, s) => (s.themeRadius = v),
+  'theme.card_ratio': (v, s) => (s.cardRatio = v),
+  'theme.card_fit': (v, s) => (s.cardFit = v),
+  'brand.logo_key': (v, s) => (s.logoKey = v),
+  'brand.logo_height': (v, s) => (s.logoHeight = clamp(Number(v) || 32, 20, 56)),
 };
+
+/** Bounds live with the setting, not in the form that writes it. */
+const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
 
 export async function loadSettings(db: D1Database): Promise<Settings> {
   const { results } = await db

@@ -42,5 +42,33 @@ export default defineConfig({
       // gzipped and we should notice long before we approach it.
       chunkSizeWarningLimit: 512,
     },
+
+    // `environments.ssr`, not the older top-level `ssr.optimizeDeps` — under
+    // Vite's environment API the Cloudflare plugin runs the server in its own
+    // environment, and the legacy key is silently ignored there.
+    environments: {
+      ssr: {
+        optimizeDeps: {
+          // Pre-declare the passthrough image service.
+          //
+          // `imageService: 'passthrough'` above makes Astro pull in
+          // astro/assets/services/noop, but it is DISCOVERED after the dev
+          // server is already serving. Vite then re-optimises, the content hash
+          // in node_modules/.vite/deps_ssr changes, and the workerd runner is
+          // left holding the previous URL — every request afterwards dies with
+          // "The file does not exist at .../deps_ssr/<name>.js?v=<old hash>",
+          // which reads like a code error and is not one. Naming it here means
+          // it is bundled before the first request instead of during it.
+          include: ['astro/assets/services/noop'],
+          // And stop discovery re-running afterwards. Pre-declaring the image
+          // service fixes the FIRST start; any later change to the dependency
+          // graph — installing a package, adding an import — re-runs discovery,
+          // re-hashes the bundle, and strands the workerd runner on the old URL
+          // all over again. With discovery off, the include list above is the
+          // whole of it, and nothing re-hashes mid-session.
+          noDiscovery: true,
+        },
+      },
+    },
   },
 });

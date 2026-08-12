@@ -21,6 +21,7 @@
     "preview": "wrangler dev",
     "test": "vitest run && npm run test:schema",
     "test:schema": "node ./scripts/test-schema.mjs",
+    "test:watch": "vitest",
     "typecheck": "astro check && tsc --noEmit"
   },
   "dependencies": {

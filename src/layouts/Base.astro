@@ -1,4 +1,7 @@
 ---
+import { themeVars } from '../lib/theme';
+import { mediaUrl } from '../lib/settings';
+
 interface Props {
   title?: string;
   description?: string;
@@ -6,6 +9,7 @@ interface Props {
 
 const { title, description } = Astro.props;
 const settings = Astro.locals.settings;
+const logo = mediaUrl(settings, settings.logoKey);
 const pageTitle = title ? `${title} · ${settings.shopName}` : settings.shopName;
 ---
 
@@ -30,8 +34,12 @@ const pageTitle = title ? `${title} · ${settings.shopName}` : settings.shopName
         --paper: #fdfdfc;
         --line: #e3e5e2;
         --accent: #1a5c3a;
+        --on-accent: #fdfdfc;
         --radius: 3px;
         --measure: 68ch;
+        --card-ratio: 2 / 3;
+        --card-fit: cover;
+        --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -44,7 +52,7 @@ const pageTitle = title ? `${title} · ${settings.shopName}` : settings.shopName
         margin: 0;
         background: var(--paper);
         color: var(--ink);
-        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        font: 16px/1.6 var(--font);
         -webkit-font-smoothing: antialiased;
       }
       a { color: inherit; }
@@ -60,8 +68,8 @@ const pageTitle = title ? `${title} · ${settings.shopName}` : settings.shopName
 
       .grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
       .card { text-decoration: none; display: block; }
-      .card .thumb { aspect-ratio: 2 / 3; background: var(--line); border-radius: var(--radius); overflow: hidden; }
-      .card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+      .card .thumb { aspect-ratio: var(--card-ratio); background: var(--line); border-radius: var(--radius); overflow: hidden; }
+      .card .thumb img { width: 100%; height: 100%; object-fit: var(--card-fit); }
       .card h3 { margin: .6rem 0 .15rem; font-size: .98rem; font-weight: 600; }
       .price { font-variant-numeric: tabular-nums; }
       .muted { color: var(--ink-2); }
@@ -69,19 +77,34 @@ const pageTitle = title ? `${title} · ${settings.shopName}` : settings.shopName
 
       button, .btn {
         font: inherit; border: 1px solid var(--accent); background: var(--accent);
-        color: var(--paper); padding: .7rem 1.1rem; border-radius: var(--radius);
+        color: var(--on-accent); padding: .7rem 1.1rem; border-radius: var(--radius);
         cursor: pointer; text-decoration: none; display: inline-block;
       }
       button[disabled] { opacity: .5; cursor: not-allowed; }
       select, input { font: inherit; padding: .55rem .6rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
       :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     </style>
+
+    <!--
+      The shop's own theme. Deliberately the LAST style in the head: same
+      specificity as the block above, so a later declaration simply wins and the
+      static values become the fallback for a shop that has never chosen
+      anything. Server-rendered before any body content, so there is no flash.
+
+      `set:html` does not escape. Every value inside has been re-validated by
+      `themeVars` at render time — see the injection note in lib/theme.ts.
+    -->
+    <style set:html={themeVars(settings)}></style>
   </head>
 
   <body>
     <header class="site">
       <div class="wrap bar">
-        <a class="brand" href="/">{settings.shopName}</a>
+        <a class="brand" href="/">
+          {logo
+            ? <img src={logo} alt={settings.shopName} height={settings.logoHeight} style={`height:${settings.logoHeight}px;width:auto`} />
+            : settings.shopName}
+        </a>
         <a href="/cart" rel="nofollow">Cart</a>
       </div>
     </header>
