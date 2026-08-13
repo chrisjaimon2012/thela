@@ -2,7 +2,20 @@
 // deprecated in favour of the same import the application code uses, which is
 // also the point: the tests reach for bindings exactly as the Worker does.
 import { env } from 'cloudflare:workers';
-import migration from '../../migrations/0001_init.sql?raw';
+
+/**
+ * EVERY migration, in filename order — the same order wrangler applies them.
+ *
+ * Not a named import of 0001, which is what this was and which quietly stopped
+ * being the schema the moment a second migration existed: the admin tables were
+ * simply absent and every test touching them failed with "no such table".
+ * Globbing means adding a migration needs no change here.
+ */
+const MIGRATIONS = Object.entries(
+  import.meta.glob('../../migrations/*.sql', { eager: true, query: '?raw', import: 'default' }),
+)
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([, sql]) => sql as string);
 
 /**
  * Apply the real migration to the test database.
@@ -31,17 +44,19 @@ export async function migrate(): Promise<D1Database> {
     return env.DB;
   }
 
-  const sql = migration
-    .split('\n')
-    .filter((line) => !line.trim().startsWith('--'))
-    .join('\n');
+  for (const migration of MIGRATIONS) {
+    const sql = migration
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('--'))
+      .join('\n');
 
-  const statements = sql
-    .split(/;\s*$/m)
-    .map((s) => s.trim())
-    .filter(Boolean);
+    const statements = sql
+      .split(/;\s*$/m)
+      .map((s) => s.trim())
+      .filter(Boolean);
 
-  await env.DB.batch(statements.map((s) => env.DB.prepare(s)));
+    await env.DB.batch(statements.map((s) => env.DB.prepare(s)));
+  }
   return env.DB;
 }
 
@@ -54,6 +69,7 @@ export async function migrate(): Promise<D1Database> {
  */
 async function clear(db: D1Database): Promise<void> {
   const tables = [
+    'admin_action', 'admin_recovery', 'admin_credential', 'admin_user',
     'payment_event', 'credit_evidence', 'unparsed_alert', 'statement_import',
     'shipment', 'order_item', 'orders',
     'product_image', 'variant', 'product_option', 'product', 'stock_item',

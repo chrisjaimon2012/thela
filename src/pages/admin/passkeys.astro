@@ -1,0 +1,80 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { CEREMONY_JS } from '../../lib/admin/ceremony';
+import { env } from 'cloudflare:workers';
+
+const admin = Astro.locals.admin!;
+const recovered = Astro.url.searchParams.get('recovered') === '1';
+const done = Astro.url.searchParams.get('done');
+
+const { results: keys } = await env.DB
+  .prepare(
+    `SELECT id, label, transports, created_at AS createdAt, last_used_at AS lastUsedAt
+       FROM admin_credential WHERE user_id = ?1 ORDER BY created_at`,
+  )
+  .bind(admin.id)
+  .all<{ id: string; label: string; transports: string; createdAt: string; lastUsedAt: string | null }>();
+---
+
+<Admin title="Your passkeys">
+  <div class="note bad" id="ceremony-error" hidden></div>
+  <div class="note warn" id="no-webauthn" hidden>This browser cannot use passkeys.</div>
+
+  {recovered && (
+    <div class="note warn">
+      <strong>You are signed in with a one-time code, not a passkey.</strong>
+      Add one now — this session lasts eight hours and there is no password to
+      fall back on afterwards.
+    </div>
+  )}
+  {done === 'revoked' && <div class="note">Every old passkey has been removed.</div>}
+
+  {keys.length === 0 ? (
+    <p class="muted">You have no passkeys on this account.</p>
+  ) : (
+    <table>
+      <thead><tr><th>Device</th><th>Added</th><th>Last used</th></tr></thead>
+      <tbody>
+        {keys.map((k) => (
+          <tr>
+            <td>
+              {k.label || 'Unnamed device'}
+              {k.transports && <div class="muted small">{k.transports}</div>}
+            </td>
+            <td class="muted small">{k.createdAt}</td>
+            <td class="muted small">{k.lastUsedAt ?? 'never'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+
+  <h2>Add a passkey</h2>
+  <p class="muted small" style="max-width:40rem">
+    Add one for every device you sign in from. Two is the number that stops a
+    lost phone becoming an emergency.
+  </p>
+  <form data-ceremony="register"
+        data-start="/admin/api/passkey/start"
+        data-finish="/admin/api/passkey/finish"
+        data-next="/admin/passkeys"
+        style="margin-top:.75rem">
+    <button type="submit">Add a passkey on this device</button>
+  </form>
+
+  {keys.length > 0 && (
+    <>
+      <h2>Lost a device?</h2>
+      <p class="muted small" style="max-width:40rem">
+        This removes every passkey above, including the one you may be using
+        right now. Add a new one first, or you will be locked out until another
+        code reaches your email.
+      </p>
+      <form method="POST" action="/admin/passkeys/revoke" style="margin-top:.75rem">
+        <button type="submit" class="quiet">Remove every passkey</button>
+      </form>
+    </>
+  )}
+
+  <script is:inline set:html={CEREMONY_JS}></script>
+</Admin>

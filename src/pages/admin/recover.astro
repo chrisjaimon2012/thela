@@ -1,0 +1,50 @@
+---
+import Admin from '../../layouts/Admin.astro';
+
+if (Astro.locals.admin) return Astro.redirect('/admin', 303);
+
+const sent = Astro.url.searchParams.get('sent') === '1';
+const problem = Astro.url.searchParams.get('e');
+---
+
+<Admin title="Get back in">
+  {problem && <div class="note bad">{decodeURIComponent(problem)}</div>}
+
+  {sent ? (
+    <>
+      <div class="note">
+        If that address belongs to an admin here, a code is on its way. It works
+        once, and only for the next twenty minutes.
+      </div>
+
+      <form method="POST" action="/admin/recover/verify" style="max-width:24rem">
+        <label>
+          Your code
+          <span class="hint">Eight characters. Case does not matter.</span>
+          <input name="code" required autocomplete="one-time-code" autocapitalize="characters"
+                 spellcheck="false" style="font-family:ui-monospace,monospace;letter-spacing:.2em" />
+        </label>
+        <button type="submit">Continue</button>
+      </form>
+    </>
+  ) : (
+    <>
+      <p class="muted" style="max-width:34rem">
+        If you have lost the device with your passkey on it, put in the email
+        address you set the shop up with and we will send you a one-time code.
+      </p>
+
+      <form method="POST" action="/admin/recover/request" style="max-width:24rem">
+        <label>
+          Email address
+          <input name="email" type="email" required autocomplete="email" />
+        </label>
+        <button type="submit">Send me a code</button>
+      </form>
+    </>
+  )}
+
+  <p class="muted small" style="margin-top:2rem">
+    <a href="/admin/login">Back to signing in</a>
+  </p>
+</Admin>

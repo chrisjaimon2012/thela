@@ -115,6 +115,7 @@ misattributed. It also keeps a personal address out of a public repository.
 | Changing `database_id` | Re-keys the local D1. Your tables vanish — re-run `db:migrate:local` and `db:seed:local`. |
 | `The file does not exist at .../deps_ssr/…?v=<hash>` | A stale vite SSR pre-bundle, never your code. Fixed for good by `environments.ssr.optimizeDeps` in `astro.config.mjs` — do not remove it. |
 | `astro dev` errors going to nowhere | Astro 7 daemonises. Real errors are in `.astro/dev.log`; stdout only says "exited before becoming ready". |
+| A page and an endpoint at the same path | `recover.astro` and `recover/index.ts` both claim `/admin/recover`. The PAGE wins silently, the form posts to itself, and nothing happens. Give the endpoint its own verb-ish path. |
 | Testing a form POST with curl | Astro checks `Origin` and 403s without it. Send `-H "Origin: http://localhost:4321"`. Browsers send it automatically. |
 | `Uint8Array` into WebCrypto | Since TS 5.7 it widens to `ArrayBufferLike`, which WebCrypto rejects. Annotate `Uint8Array<ArrayBuffer>`. |
 | Serving images through the Worker | Turns a comfortable free tier into an overage. R2 custom domain only. |

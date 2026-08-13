@@ -37,8 +37,15 @@ async function post(url, body) {
 }
 
 async function register(form) {
-  const options = await post('/admin/api/register/start', {
-    email: form.email.value, name: form.name.value,
+  const start = form.dataset.start || '/admin/api/register/start';
+  const finish = form.dataset.finish || '/admin/api/register/finish';
+
+  // The setup form carries these; the add-a-passkey form does not, because the
+  // account already exists and the session says whose it is.
+  const options = await post(start, {
+    token: form.token?.value,
+    email: form.email?.value,
+    name: form.name?.value,
   });
 
   const created = await navigator.credentials.create({
@@ -54,7 +61,7 @@ async function register(form) {
   const spki = created.response.getPublicKey();
   if (!spki) throw new Error('This browser could not read the key from that device. Try another device.');
 
-  await post('/admin/api/register/finish', {
+  await post(finish, {
     credentialId: created.id,
     publicKey: b64(spki),
     algorithm: created.response.getPublicKeyAlgorithm(),
