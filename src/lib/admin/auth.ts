@@ -168,6 +168,15 @@ interface ChallengePayload {
   purpose: 'register' | 'login';
   /** Present when registering onto an existing account. */
   uid?: string;
+  /**
+   * Carried from `start` to `finish` rather than re-sent by the client.
+   *
+   * `start` is where the setup token is checked and the address validated, so
+   * letting `finish` take an email from its own request body would mean the
+   * token gated one identity and a different one got created.
+   */
+  email?: string;
+  name?: string;
 }
 
 /**
@@ -184,14 +193,16 @@ export async function issueChallenge(
   challenge: string,
   purpose: ChallengePayload['purpose'],
   secure: boolean,
-  uid?: string,
+  carry: { uid?: string; email?: string; name?: string } = {},
 ): Promise<void> {
   cookies.set(
     CHALLENGE_COOKIE,
-    await sign({ challenge, purpose, uid } satisfies ChallengePayload, secret, CHALLENGE_TTL_S),
+    await sign({ challenge, purpose, ...carry } satisfies ChallengePayload, secret, CHALLENGE_TTL_S),
     cookieOptions(secure, CHALLENGE_TTL_S),
   );
 }
+
+export type { ChallengePayload };
 
 export async function takeChallenge(
   cookies: AstroCookies,

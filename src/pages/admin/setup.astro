@@ -1,0 +1,64 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { CEREMONY_JS } from '../../lib/admin/ceremony';
+import { isUnclaimed } from '../../lib/admin/auth';
+import { env } from 'cloudflare:workers';
+
+// Belt and braces. Middleware already redirects here while unclaimed, but this
+// page is the one that CREATES the owner — if it ever rendered on a claimed
+// shop, anyone who found the URL would become an admin.
+if (!(await isUnclaimed(env.DB))) return Astro.redirect('/admin/login', 303);
+
+// The window this closes: a shop is publicly reachable the moment its deploy
+// finishes, before anyone has set it up. Without a token, whoever finds the URL
+// first owns the shop.
+const tokenRequired = Boolean(env.ADMIN_SETUP_TOKEN);
+---
+
+<Admin title="Set up your shop" intro="Nobody has claimed this shop yet. This takes a minute, and you only do it once.">
+  <div class="note bad" id="ceremony-error" hidden></div>
+  <div class="note warn" id="no-webauthn" hidden>
+    This browser cannot create passkeys. Try Chrome, Safari, Edge or Firefox on
+    a device with a screen lock, fingerprint reader or face unlock.
+  </div>
+
+  {!tokenRequired && (
+    <div class="note warn">
+      <strong>This shop has no setup token.</strong> Anyone who finds this page
+      before you finish can claim it. Set <code>ADMIN_SETUP_TOKEN</code> as a
+      secret and redeploy if this shop is already publicly reachable.
+    </div>
+  )}
+
+  <form data-ceremony="register" data-next="/admin" style="max-width:26rem">
+    {tokenRequired && (
+      <label>
+        Setup token
+        <span class="hint">The value you set as ADMIN_SETUP_TOKEN when deploying.</span>
+        <input name="token" required autocomplete="off" />
+      </label>
+    )}
+
+    <label>
+      Your name
+      <input name="name" required autocomplete="name" />
+    </label>
+
+    <label>
+      Your email
+      <span class="hint">
+        This is how you get back in if you lose your device, so use one you will
+        still have in two years. It is never shown to customers.
+      </span>
+      <input name="email" type="email" required autocomplete="email" />
+    </label>
+
+    <button type="submit">Create a passkey</button>
+    <p class="muted small" style="margin-top:.75rem">
+      Your device will ask for your fingerprint, face or screen lock. There is no
+      password to choose or remember.
+    </p>
+  </form>
+
+  <script is:inline set:html={CEREMONY_JS}></script>
+</Admin>

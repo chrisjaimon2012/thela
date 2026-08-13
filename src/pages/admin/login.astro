@@ -1,0 +1,31 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { CEREMONY_JS } from '../../lib/admin/ceremony';
+
+if (Astro.locals.admin) return Astro.redirect('/admin', 303);
+
+// Only ever a path on this shop. An open redirect here would let a phishing
+// page bounce a freshly-signed-in admin straight out to an attacker.
+const raw = Astro.url.searchParams.get('to') ?? '/admin';
+const next = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/admin';
+---
+
+<Admin title="Sign in">
+  <div class="note bad" id="ceremony-error" hidden></div>
+  <div class="note warn" id="no-webauthn" hidden>
+    This browser cannot use passkeys. Try Chrome, Safari, Edge or Firefox.
+  </div>
+
+  <form data-ceremony="login" data-next={next} style="max-width:26rem">
+    <button type="submit">Sign in with a passkey</button>
+    <p class="muted small" style="margin-top:.75rem">
+      Your device will ask for your fingerprint, face or screen lock.
+    </p>
+  </form>
+
+  <p class="muted small" style="margin-top:2rem">
+    Lost the device with your passkey? <a href="/admin/recover">Get back in by email</a>.
+  </p>
+
+  <script is:inline set:html={CEREMONY_JS}></script>
+</Admin>

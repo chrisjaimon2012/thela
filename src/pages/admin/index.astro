@@ -1,0 +1,72 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { listOrders, type OrderStatus } from '../../lib/admin/orders';
+import { priceFormatter } from '../../lib/money';
+import { env } from 'cloudflare:workers';
+
+const settings = Astro.locals.settings;
+const price = priceFormatter(settings);
+
+const filter = (Astro.url.searchParams.get('show') ?? 'attention') as OrderStatus | 'attention' | 'all';
+const orders = await listOrders(env.DB, filter === 'all' ? {} : { status: filter });
+
+const tabs = [
+  { key: 'attention', label: 'Needs you' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'shipped', label: 'Shipped' },
+  { key: 'all', label: 'Everything' },
+];
+
+const when = (iso: string) =>
+  new Date(iso.replace(' ', 'T') + (iso.endsWith('Z') ? '' : 'Z'))
+    .toLocaleString(settings.locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+const badge = (s: string) =>
+  s === 'paid' ? 'good' : s === 'awaiting_payment' ? 'warn' : s === 'cancelled' ? 'bad' : '';
+---
+
+<Admin title="Orders">
+  <nav style="display:flex;gap:1rem;margin-bottom:1.25rem;font-size:.9rem">
+    {tabs.map((t) => (
+      <a href={`/admin?show=${t.key}`}
+         style={t.key === filter ? 'font-weight:600;text-decoration:none' : 'color:var(--ink-2)'}>
+        {t.label}
+      </a>
+    ))}
+  </nav>
+
+  {orders.length === 0 ? (
+    <p class="empty">
+      {filter === 'attention'
+        ? 'Nothing needs you right now.'
+        : 'No orders here yet.'}
+    </p>
+  ) : (
+    <table>
+      <thead>
+        <tr>
+          <th>Order</th><th>Customer</th><th>Items</th>
+          <th style="text-align:right">Amount</th><th>Status</th><th>When</th>
+        </tr>
+      </thead>
+      <tbody>
+        {orders.map((o) => (
+          <tr>
+            <td><a href={`/admin/orders/${o.id}`} style="font-weight:600">{o.id}</a></td>
+            <td>
+              {o.customerName}
+              <div class="muted small">{o.customerEmail}</div>
+            </td>
+            <td class="num">{o.itemCount}</td>
+            <td class="num" style="text-align:right">{price(o.amountDueMinor)}</td>
+            <td>
+              <span class={`pill ${badge(o.status)}`}>{o.status.replace('_', ' ')}</span>
+              {o.tracking && <div class="muted small" style="margin-top:.2rem">{o.tracking}</div>}
+            </td>
+            <td class="muted small">{when(o.paidAt ?? o.createdAt)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+</Admin>

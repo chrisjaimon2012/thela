@@ -1,0 +1,176 @@
+---
+import Admin from '../../../layouts/Admin.astro';
+import { getOrder } from '../../../lib/admin/orders';
+import { priceFormatter } from '../../../lib/money';
+import { env } from 'cloudflare:workers';
+
+const { id } = Astro.params;
+const order = id ? await getOrder(env.DB, id) : null;
+if (!order) return new Response('Not found', { status: 404 });
+
+const settings = Astro.locals.settings;
+const price = priceFormatter({ ...settings, currency: order.currency });
+
+const done = Astro.url.searchParams.get('done');
+const problem = Astro.url.searchParams.get('e');
+
+const open = order.status === 'awaiting_payment';
+const shippable = order.fulfilment === 'carrier' && ['paid', 'packed'].includes(order.status);
+
+const addr = [order.ship.line1, order.ship.line2, order.ship.city,
+              order.ship.region, order.ship.postcode, order.ship.country].filter(Boolean);
+---
+
+<Admin title={`Order ${order.id}`}>
+  {done === 'paid' && <div class="note">Marked as paid. Stock has been taken off the shelf.</div>}
+  {done === 'shipped' && <div class="note">Dispatched. The tracking number is saved.</div>}
+  {problem === 'settled' && (
+    <div class="note warn">
+      This order was already paid — nothing was changed. Somebody, or an
+      incoming bank alert, got there first.
+    </div>
+  )}
+  {problem === 'reference' && (
+    <div class="note bad">A reference is needed, so this payment can be recognised again later.</div>
+  )}
+
+  <div style="display:grid;gap:2rem;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+    <div>
+      <h2 style="margin-top:0">Items</h2>
+      <table>
+        <tbody>
+          {order.lines.map((l) => (
+            <tr>
+              <td>
+                {l.title}
+                {l.optionLabel && <div class="muted small">{l.optionLabel}</div>}
+                <div class="muted small">{l.sku}</div>
+              </td>
+              <td class="num" style="width:3rem">×{l.qty}</td>
+              <td class="num" style="text-align:right;width:7rem">{price(l.unitMinor * l.qty)}</td>
+            </tr>
+          ))}
+          <tr>
+            <td colspan="2" class="muted">Subtotal</td>
+            <td class="num" style="text-align:right">{price(order.subtotalMinor)}</td>
+          </tr>
+          {order.shippingMinor > 0 && (
+            <tr>
+              <td colspan="2" class="muted">Delivery</td>
+              <td class="num" style="text-align:right">{price(order.shippingMinor)}</td>
+            </tr>
+          )}
+          {order.taxMinor > 0 && (
+            <tr>
+              <td colspan="2" class="muted">{settings.taxLabel}</td>
+              <td class="num" style="text-align:right">{price(order.taxMinor)}</td>
+            </tr>
+          )}
+          <tr>
+            <td colspan="2"><strong>To pay</strong></td>
+            <td class="num" style="text-align:right"><strong>{price(order.amountDueMinor)}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="muted small" style="margin-top:.6rem">
+        The last two digits are unique to this order while it is open — that is
+        how a bank credit is matched back to it.
+      </p>
+    </div>
+
+    <div>
+      <h2 style="margin-top:0">Customer</h2>
+      <p style="margin:0 0 .3rem">{order.customerName}</p>
+      <p class="muted small" style="margin:0">
+        <a href={`mailto:${order.customerEmail}`}>{order.customerEmail}</a>
+        {order.customerPhone && <> · {order.customerPhone}</>}
+      </p>
+
+      {addr.length > 0 && (
+        <>
+          <h2>Deliver to</h2>
+          <p class="small" style="margin:0;white-space:pre-line">{addr.join('\n')}</p>
+        </>
+      )}
+      {order.fulfilment === 'pickup' && <p class="muted small" style="margin-top:1rem">Collecting in person.</p>}
+
+      {order.note && (
+        <>
+          <h2>What they said</h2>
+          <p class="small" style="margin:0;white-space:pre-line">{order.note}</p>
+        </>
+      )}
+    </div>
+  </div>
+
+  <h2>Payment</h2>
+  {order.payments.length > 0 ? (
+    <table>
+      <thead>
+        <tr><th>Reference</th><th>How we know</th><th style="text-align:right">Amount</th><th>When</th></tr>
+      </thead>
+      <tbody>
+        {order.payments.map((p) => (
+          <tr>
+            <td class="num">{p.reference}</td>
+            <td>
+              <span class="pill">{p.confidence}</span> {p.source}
+              {p.actor && <div class="muted small">{p.actor}</div>}
+            </td>
+            <td class="num" style="text-align:right">{price(p.amountMinor)}</td>
+            <td class="muted small">{p.at}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ) : (
+    <p class="muted">Nothing has confirmed this payment yet.</p>
+  )}
+
+  {open && (
+    <>
+      <h2>Mark it paid yourself</h2>
+      <p class="muted small" style="max-width:44rem">
+        Use this when you have checked your own bank app or passbook and the
+        money is there. Put in the bank's reference — the UTR, RRN, or whatever
+        your statement calls it — so that when the same payment turns up in a
+        statement upload later, thela recognises it instead of counting it twice.
+      </p>
+      <form method="POST" action={`/admin/orders/${order.id}/mark-paid`}
+            style="display:flex;gap:.6rem;align-items:flex-end;max-width:34rem;margin-top:.75rem">
+        <label style="flex:1;margin:0">
+          Bank reference
+          <input name="reference" required autocomplete="off" placeholder="e.g. 402312345678" />
+        </label>
+        <button type="submit">Mark paid</button>
+      </form>
+    </>
+  )}
+
+  {shippable && (
+    <>
+      <h2>Dispatch</h2>
+      <p class="muted small" style="max-width:44rem">
+        Book the parcel with your courier as usual, then put the tracking number
+        here. thela works out who is carrying it and sends the customer a link.
+      </p>
+      <form method="POST" action={`/admin/orders/${order.id}/dispatch`}
+            style="display:flex;gap:.6rem;align-items:flex-end;max-width:34rem;margin-top:.75rem">
+        <label style="flex:1;margin:0">
+          Tracking number
+          <input name="tracking" required autocomplete="off" />
+        </label>
+        <button type="submit">Dispatch</button>
+      </form>
+    </>
+  )}
+
+  {order.tracking && (
+    <p style="margin-top:1.5rem">
+      <a class="btn quiet" href={`/admin/orders/${order.id}/label`} target="_blank" rel="noopener">
+        Print the label
+      </a>
+    </p>
+  )}
+</Admin>

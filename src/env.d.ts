@@ -61,5 +61,7 @@ declare namespace App {
   interface Locals extends Runtime {
     /** Loaded once per request by `src/middleware.ts`. Never read the table again. */
     settings: import('./lib/settings').Settings;
+    /** Resolved for /admin routes only. Null means signed out. */
+    admin: import('./lib/admin/auth').Admin | null;
   }
 }
