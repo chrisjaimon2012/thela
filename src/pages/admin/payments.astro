@@ -1,0 +1,135 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { pendingCredits } from '../../lib/admin/orders';
+import { candidateOrders } from '../../lib/admin/credits';
+import { priceFormatter } from '../../lib/money';
+import { env } from 'cloudflare:workers';
+
+const settings = Astro.locals.settings;
+const db = env.DB;
+
+const credits = await pendingCredits(db);
+
+// One suggestion list per credit. Sequential rather than parallel on purpose:
+// the queue is normally empty or has a handful of rows, and firing an unbounded
+// fan of queries at D1 to save milliseconds on a page nobody loads in a hurry
+// is the wrong trade against a rows-scanned budget.
+const suggestions = new Map<string, Awaited<ReturnType<typeof candidateOrders>>>();
+for (const c of credits.slice(0, 20)) {
+  suggestions.set(c.reference, await candidateOrders(db, c.currency, c.amountMinor));
+}
+
+const done = Astro.url.searchParams.get('done');
+const problem = Astro.url.searchParams.get('e');
+
+const price = (minor: number, currency: string) =>
+  priceFormatter({ ...settings, currency })(minor);
+
+const why = (c: { unmatchedReason: string | null; confidence: string }) =>
+  c.unmatchedReason === 'no_open_order_for_amount'
+    ? 'No order was for this amount'
+    : c.unmatchedReason === 'outside_time_window'
+      ? 'Arrived too long after the order'
+      : `Held because we only have a ${c.confidence} for it`;
+---
+
+<Admin title="Payments" intro="Money that has arrived and is waiting for you to place it.">
+  {done === 'imported' && (
+    <div class="note">
+      Statement read. Anything that matched an open order has been settled; the
+      rest is below.
+    </div>
+  )}
+  {done === 'settled' && <div class="note">Applied. Stock has come off the shelf.</div>}
+  {done === 'dismissed' && <div class="note">Taken off the list. The record is kept.</div>}
+  {problem && <div class="note bad">{decodeURIComponent(problem)}</div>}
+
+  <h2 style="margin-top:0">Upload a bank statement</h2>
+  <p class="muted small" style="max-width:46rem">
+    Export your account as CSV from your bank and drop it here. Anything that
+    matches an open order is settled straight away; a payment already recorded
+    another way is recognised and skipped, so uploading the same file twice is
+    safe. Your statement is read and discarded — it is never stored.
+  </p>
+  <form method="POST" action="/admin/api/statement" enctype="multipart/form-data"
+        style="display:flex;gap:.6rem;align-items:flex-end;max-width:34rem;margin:.75rem 0 2.5rem">
+    <label style="flex:1;margin:0">
+      Statement CSV
+      <input type="file" name="file" accept=".csv,text/csv" required />
+    </label>
+    <button type="submit">Read it</button>
+  </form>
+
+  <h2>Waiting for you</h2>
+
+  {credits.length === 0 ? (
+    <p class="empty">Nothing is waiting. Every payment that has arrived is accounted for.</p>
+  ) : (
+    credits.map((c) => (
+      <article style="border:1px solid var(--line);border-radius:6px;padding:1rem;margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+          <div>
+            <strong class="num" style="font-size:1.1rem">{price(c.amountMinor, c.currency)}</strong>
+            <span class="pill" style="margin-left:.5rem">{c.confidence}</span>
+            <span class="pill" style="margin-left:.25rem">{c.source}</span>
+            <div class="muted small" style="margin-top:.3rem">
+              {c.reference}
+              {c.payerRef && <> · from {c.payerRef}</>}
+              {' · '}{c.creditedAt}
+            </div>
+            {c.narration && <div class="muted small" style="margin-top:.2rem">{c.narration}</div>}
+          </div>
+          <div class="small" style="text-align:right;color:var(--warn)">{why(c)}</div>
+        </div>
+
+        {(suggestions.get(c.reference) ?? []).length > 0 ? (
+          <>
+            <p class="muted small" style="margin:1rem 0 .4rem">
+              Open orders for a similar amount. Check your bank app, then pick the
+              one this belongs to.
+            </p>
+            <table>
+              <tbody>
+                {(suggestions.get(c.reference) ?? []).map((o) => (
+                  <tr>
+                    <td><a href={`/admin/orders/${o.id}`}>{o.id}</a></td>
+                    <td>{o.customerName}<div class="muted small">{o.customerEmail}</div></td>
+                    <td class="num" style="text-align:right">
+                      {price(o.amountDueMinor, c.currency)}
+                      {o.amountDueMinor !== c.amountMinor && (
+                        <div class="small" style="color:var(--warn)">
+                          {o.amountDueMinor > c.amountMinor ? 'short by ' : 'over by '}
+                          {price(Math.abs(o.amountDueMinor - c.amountMinor), c.currency)}
+                        </div>
+                      )}
+                    </td>
+                    <td style="width:8rem;text-align:right">
+                      <form method="POST" action={`/admin/payments/${encodeURIComponent(c.reference)}/settle`}>
+                        <input type="hidden" name="orderId" value={o.id} />
+                        <button type="submit" class="quiet">This one</button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <p class="muted small" style="margin:1rem 0 .4rem">
+            No open order is anywhere near this amount. It may be a refund coming
+            back, a transfer of your own, or a customer who paid twice.
+          </p>
+        )}
+
+        <form method="POST" action={`/admin/payments/${encodeURIComponent(c.reference)}/dismiss`}
+              style="display:flex;gap:.5rem;align-items:flex-end;margin-top:1rem;max-width:30rem">
+          <label style="flex:1;margin:0">
+            <span class="hint">Not a customer payment? Say what it was and take it off the list.</span>
+            <input name="reason" placeholder="e.g. my own transfer" required />
+          </label>
+          <button type="submit" class="quiet">Dismiss</button>
+        </form>
+      </article>
+    ))
+  )}
+</Admin>

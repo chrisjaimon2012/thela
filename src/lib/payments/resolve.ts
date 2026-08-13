@@ -14,6 +14,40 @@ import type { Evidence, Resolution } from './types';
 const minutesBetween = (a: string, b: string) =>
   Math.abs(Date.parse(a) - Date.parse(b)) / 60_000;
 
+/** SQLite's `datetime('now')` has no zone marker but is UTC. */
+const utc = (iso: string) => Date.parse(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`);
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Could this money plausibly be for this order?
+ *
+ * For EXACT evidence — an alert, a webhook — the credit and the order should be
+ * minutes apart, and `timeWindowMinutes` says how many.
+ *
+ * For DAY evidence — a bank statement — we know only the date, so the payment
+ * happened somewhere in a 24-hour interval. The question becomes whether that
+ * interval overlaps the window in which this order could have been paid at all:
+ * from when it was created until it expired. An order that expired unpaid was
+ * cancelled and its slot released, so anything outside that window belongs to a
+ * different order that happened to cost the same.
+ *
+ * `timeWindowMinutes` of slack is allowed either side, because a bank's posting
+ * date and the customer's payment date disagree across midnight often enough to
+ * matter.
+ */
+function plausible(ev: Evidence, order: { created_at: string; expires_at: string }): boolean {
+  if ((ev.timePrecision ?? 'exact') === 'exact') {
+    return minutesBetween(ev.at, order.created_at) <= timeWindowMinutes;
+  }
+
+  const slack = timeWindowMinutes * 60_000;
+  const dayStart = utc(ev.at);
+  const dayEnd = dayStart + DAY_MS;
+
+  return dayEnd >= utc(order.created_at) - slack && dayStart <= utc(order.expires_at) + slack;
+}
+
 export async function resolve(db: D1Database, ev: Evidence): Promise<Resolution> {
   // 1. Idempotency, on the reference alone.
   //
@@ -31,12 +65,12 @@ export async function resolve(db: D1Database, ev: Evidence): Promise<Resolution>
   //    index over awaiting-payment rows, so this can never return two.
   const order = await db
     .prepare(
-      `SELECT id, created_at FROM orders
+      `SELECT id, created_at, expires_at FROM orders
         WHERE status = 'awaiting_payment'
           AND currency = ?1 AND amount_due_minor = ?2`,
     )
     .bind(ev.currency, ev.amountMinor)
-    .first<{ id: string; created_at: string }>();
+    .first<{ id: string; created_at: string; expires_at: string }>();
 
   if (!order) {
     await recordUnmatched(db, ev, 'no_open_order_for_amount');
@@ -44,8 +78,10 @@ export async function resolve(db: D1Database, ev: Evidence): Promise<Resolution>
   }
 
   // 3. A slot is reused once an order is paid or cancelled, so a stale credit
-  //    could otherwise match a much later order for the same amount.
-  if (minutesBetween(ev.at, order.created_at) > timeWindowMinutes) {
+  //    could otherwise match a much later order for the same amount. What
+  //    counts as "stale" depends entirely on how precisely we know when the
+  //    money moved — see `plausible` below.
+  if (!plausible(ev, order)) {
     await recordUnmatched(db, ev, 'outside_time_window');
     return { outcome: 'unmatched', why: 'outside_time_window' };
   }

@@ -102,6 +102,9 @@ export async function importStatement(
         amountMinor: r.amountMinor,
         currency: meta.currency,
         at: r.at,
+        // A statement gives a date, not a time. Saying so is what stops the
+        // window rejecting every genuine row.
+        timePrecision: 'day',
         narration: r.narration,
         bankId: meta.bankId,
       }),

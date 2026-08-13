@@ -165,3 +165,71 @@ describe('resolve', () => {
     expect(await stock(db)).toMatchObject({ on_hand: 8, reserved: 0 });
   });
 });
+
+describe('how precisely we know when the money moved', () => {
+  let db: D1Database;
+  beforeEach(async () => {
+    db = await migrate();
+    await seedShop(db);
+  });
+
+  /**
+   * A bank statement gives a DATE and nothing more, so `at` is midnight and the
+   * money actually moved somewhere in the following 24 hours. Judging that
+   * against a window tuned for alerts — 180 minutes — rejects almost every
+   * genuine row: a customer who orders and pays at 2pm produces a fourteen-hour
+   * gap from midnight, and the strongest evidence source becomes the one that
+   * never settles anything. This is the regression that found it.
+   */
+  it('settles a statement row for an order placed later the same day', async () => {
+    await openOrder(db, {
+      id: 'DAY',
+      amountMinor: 139937,
+      createdAt: '2026-08-12 14:00:00',
+      expiresAt: '2026-08-12 15:00:00',
+    });
+
+    const r = await resolve(
+      db,
+      evidence({ at: '2026-08-12T00:00:00Z', timePrecision: 'day' }),
+    );
+
+    expect(r).toEqual({ outcome: 'settled', orderId: 'DAY' });
+  });
+
+  it('still refuses a statement row from a different day', async () => {
+    // The slot was almost certainly reused. Widening the window must not mean
+    // abandoning the guard it exists to be.
+    await openOrder(db, {
+      id: 'DAY',
+      amountMinor: 139937,
+      createdAt: '2026-08-12 14:00:00',
+      expiresAt: '2026-08-12 15:00:00',
+    });
+
+    const r = await resolve(
+      db,
+      evidence({ at: '2026-08-20T00:00:00Z', timePrecision: 'day' }),
+    );
+
+    expect(r).toEqual({ outcome: 'unmatched', why: 'outside_time_window' });
+  });
+
+  it('keeps the tight window for evidence that carries a real timestamp', async () => {
+    // An alert arrives seconds after payment. Fourteen hours late means it is
+    // not this order's money, whatever the amount says.
+    await openOrder(db, {
+      id: 'EXACT',
+      amountMinor: 139937,
+      createdAt: '2026-08-12 14:00:00',
+      expiresAt: '2026-08-12 15:00:00',
+    });
+
+    const r = await resolve(
+      db,
+      evidence({ source: 'email', confidence: 'ledger', at: '2026-08-12T00:00:00Z' }),
+    );
+
+    expect(r).toEqual({ outcome: 'unmatched', why: 'outside_time_window' });
+  });
+});

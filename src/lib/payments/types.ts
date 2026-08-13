@@ -55,6 +55,19 @@ export interface Evidence {
   currency: string;
   /** ISO 8601. When the money moved, not when we heard about it. */
   at: string;
+  /**
+   * How precisely `at` is known.
+   *
+   * `exact` for an alert or a webhook, which timestamp the moment. `day` for a
+   * bank statement, which gives a DATE and nothing more — so `at` is midnight
+   * and the money actually moved somewhere in the following 24 hours.
+   *
+   * This is not a detail. Matching a statement against a window tuned for
+   * alerts rejects almost everything: a customer who orders and pays at 2pm
+   * produces a fourteen-hour gap between midnight and their order, and the
+   * strongest evidence source becomes the one that never settles anything.
+   */
+  timePrecision?: 'exact' | 'day';
   /** VPA, IBAN, card last four — whatever the rail identifies a payer by. */
   payerRef?: string;
   narration?: string;
