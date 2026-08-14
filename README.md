@@ -118,6 +118,11 @@ Full detail in [docs/architecture.md](docs/architecture.md).
 
 <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/chrisjaimon2012/thela"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" /></a>
 
+> **Set your custom domain before you run the setup wizard.** A passkey is bound
+> to the hostname it was created on, so claiming your shop on `*.workers.dev`
+> and moving to your own domain afterwards leaves you unable to sign in.
+> [docs/deploying.md](docs/deploying.md) has the full sequence.
+
 Cloudflare copies this repository into your own GitHub account, creates the
 database, asks you for two values, builds, and deploys. Then open `/admin/setup`
 and answer a short wizard: shop name, currency, address, how you take payment.
