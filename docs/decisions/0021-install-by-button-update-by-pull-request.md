@@ -11,12 +11,27 @@ than an npm package, and one of its supporting arguments was that GitHub's
 "Sync fork" button covers upgrades for a vendor who never edits our files.
 
 That argument was wrong about the install path we actually intend to use.
-Cloudflare's "Deploy to Cloudflare" button **clones**, it does not fork. The
-changelog is explicit that it "creates a new Git repository on your
-GitHub/GitLab account", from a single import commit. There is no fork
-relationship, therefore no Sync fork button, therefore no upgrade path at all
-for a shop installed the way we most want shops to be installed. A security fix
-here would never reach a running shop.
+Cloudflare's "Deploy to Cloudflare" button **clones** the source repository into
+a new one on the installer's account — from a single import commit, with no fork
+relationship, therefore no Sync fork button, therefore no upgrade path at all for
+a shop installed the way we most want shops to be installed. A security fix here
+would never reach a running shop.
+
+> **Correction, 2026-08-14, after watching the real flow.** This is true for
+> somebody who does not own the repository, which is the case this ADR is about.
+> It is *not* universal: when the installer owns the repository — a maintainer,
+> or anybody who forked thela before deploying — the button connects Workers
+> Builds directly to that repository and no copy is made. The decision below is
+> unchanged, because the update channel has to serve the person who cloned; but
+> the sentence "it clones, it does not fork" was stated more broadly than the
+> evidence supported.
+>
+> The same session surfaced something this ADR missed entirely: the button
+> pre-fills its **deploy command as `npx wrangler deploy`**, which bypasses
+> `package.json` and therefore runs neither the migrations nor the ops Worker
+> deploy. A shop installed with that default comes up against an empty database.
+> The field is editable and must be changed to `npm run deploy`. See
+> [docs/deploying.md](../deploying.md).
 
 Verifying that turned up three more things about the button, all load-bearing:
 

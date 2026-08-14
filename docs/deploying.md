@@ -46,8 +46,42 @@ shop starts with no product photographs; everything else works. See
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chrisjaimon2012/thela)
 
-Cloudflare copies this repository into your own GitHub account, creates the
-database, asks for the two values above, builds, and deploys.
+It opens a "Set up your application" panel in the Cloudflare dashboard with a
+repository, a project name, a build command and a deploy command.
+
+### Change the deploy command. This is not optional.
+
+Cloudflare pre-fills:
+
+```
+Deploy command:  npx wrangler deploy
+```
+
+**Change it to:**
+
+```
+npm run deploy
+```
+
+`npx wrangler deploy` uploads the Worker and does nothing else. It does not
+apply the database migrations, and it does not deploy the ops Worker. A shop
+installed with the default lands on an **empty database** — every page 500s and
+the reason is not obvious from anywhere in the dashboard.
+
+`npm run deploy` runs the migrations first, deploys the shop, and then tries the
+ops Worker, reporting clearly if that last step is not permitted.
+
+Leave **Build command** as `npm run build`.
+
+### Which repository you get
+
+Two paths, and which one you are on depends on whether you own the repo:
+
+* **You own it** (you forked thela first, or you are the maintainer) —
+  Cloudflare connects Workers Builds directly to that repository. Pushes deploy.
+* **You do not own it** — Cloudflare clones the public repository into a new one
+  on your account. There is no fork relationship, so no "Sync fork" button, which
+  is why updates arrive as a pull request instead.
 
 **If the deploy finishes but your shop shows Cloudflare's "Hello World" page**,
 you have hit [an open Cloudflare bug](https://github.com/cloudflare/workers-sdk/issues/14553)
@@ -124,16 +158,24 @@ upstream weekly and opens a PR against your own copy with a plain-language
 summary. Read it, click Merge, and Cloudflare rebuilds. Nothing changes on your
 shop until you do.
 
-This exists because the Deploy button *copies* rather than forks, so there is no
-"Sync fork" button to press.
+This exists because a shop installed from the public repository is a *copy*
+rather than a fork, so there is no "Sync fork" button to press. If you forked
+thela yourself before deploying, Workers Builds is wired to your fork and you
+can sync it the ordinary way instead.
 
 ## Known gaps
 
 Honest list, as of this writing:
 
-* Whether the Deploy button can provision the ops Worker at all is **unverified**.
-  It reads one wrangler configuration, and the ops Worker has its own. Assume it
-  will not until somebody has watched it.
+* Whether the Deploy button can deploy the ops Worker is **unverified**. It runs
+  one deploy command; `npm run deploy` does attempt the second Worker, but the
+  token Workers Builds generates is scoped narrowly and may not be allowed to
+  create it. If it is not, you get a clear message and the storefront still
+  deploys.
+* Whether `predeploy` can apply migrations under Workers Builds is **unverified**
+  for the same reason — that token may lack D1 write. If your first build
+  succeeds but every page 500s, this is the first thing to check, and the fix is
+  to run `npx wrangler d1 migrations apply DB --remote` once from a terminal.
 * The setup wizard collects a recovery address but does not yet verify it. A typo
   there is not discovered until you need it.
 * `database_id` in `wrangler.jsonc` ships as a placeholder for local development.
