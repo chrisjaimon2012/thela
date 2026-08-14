@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { env } from 'cloudflare:workers';
 import { currentAdmin, isUnclaimed } from './lib/admin/auth';
+import { ensureSchema } from './lib/db/bootstrap';
 import { getSettings } from './lib/settings';
 
 /**
@@ -28,6 +29,22 @@ const PUBLIC_ADMIN =
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const path = context.url.pathname;
+
+  // A shop installed by the Deploy button may never have had its migrations
+  // run: Cloudflare provisions the database but not the schema, and the deploy
+  // command it uses is whatever was in that field on the setup page. This costs
+  // one indexed query on a cold isolate and nothing afterwards.
+  try {
+    await ensureSchema(env.DB);
+  } catch (err) {
+    console.error('bootstrap: could not build the schema', err);
+    return new Response(
+      'This shop could not set up its database. If you have just installed it, ' +
+        'check that the D1 binding named DB points at a real database, then reload.',
+      { status: 503, headers: { 'content-type': 'text/plain', 'retry-after': '30' } },
+    );
+  }
+
   context.locals.settings = await getSettings(env.DB, path);
 
   if (!path.startsWith('/admin')) return next();

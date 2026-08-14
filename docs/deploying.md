@@ -49,27 +49,22 @@ shop starts with no product photographs; everything else works. See
 It opens a "Set up your application" panel in the Cloudflare dashboard with a
 repository, a project name, a build command and a deploy command.
 
-### Change the deploy command. This is not optional.
+### The deploy command
 
-Cloudflare pre-fills:
+Cloudflare pre-fills the **Deploy command** from this repository's `deploy`
+script when it detects one, and falls back to `npx wrangler deploy`.
 
-```
-Deploy command:  npx wrangler deploy
-```
+**Either works.** The shop applies its own database schema on its first request
+if nobody applied it first, so a fresh install comes up correctly whatever is in
+that field. That is deliberate: Cloudflare provisions the database but never runs
+migrations, and asking a shopkeeper to notice and edit a command field is not an
+install path.
 
-**Change it to:**
+Setting it to `npm run deploy` is still better where you can:
 
-```
-npm run deploy
-```
-
-`npx wrangler deploy` uploads the Worker and does nothing else. It does not
-apply the database migrations, and it does not deploy the ops Worker. A shop
-installed with the default lands on an **empty database** — every page 500s and
-the reason is not obvious from anywhere in the dashboard.
-
-`npm run deploy` runs the migrations first, deploys the shop, and then tries the
-ops Worker, reporting clearly if that last step is not permitted.
+* migrations land at deploy time rather than on whichever request arrives first;
+* it also deploys the **ops Worker**, which handles bank alert emails and the
+  background timers. `npx wrangler deploy` deploys only the storefront.
 
 Leave **Build command** as `npm run build`.
 
