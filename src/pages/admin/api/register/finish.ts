@@ -5,6 +5,7 @@ import {
   startSession, takeChallenge,
 } from '../../../../lib/admin/auth';
 import { WebAuthnError, verifyRegistration } from '../../../../lib/admin/webauthn';
+import { applyShopIdentity } from '../../../../lib/admin/setup';
 
 /** Finish registering, create the owner, and sign them in. */
 export const POST: APIRoute = async ({ request, cookies }) => {
@@ -58,6 +59,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     label: String(body.label ?? ''),
     transports: String(body.transports ?? ''),
   });
+
+  // The shop's own identity, from the same signed challenge as the owner's.
+  // Written before the session starts, so the first page they see is a
+  // configured shop rather than one still asking to be set up.
+  if (held.shop) await applyShopIdentity(db, held.shop);
 
   await audit(db, email, 'admin.claimed', userId, 'first passkey registered');
   await startSession(cookies, secret, userId, 'passkey', isSecure(request));

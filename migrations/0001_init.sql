@@ -323,37 +323,43 @@ CREATE TABLE setting (
 ) STRICT;
 
 INSERT INTO setting (key, value) VALUES
+  -- WHAT IS SEEDED HERE IS ONLY WHAT IS TRUE OF EVERY SHOP ON EARTH.
+  --
+  -- Country, language, currency, tax label and payment method are NOT seeded,
+  -- deliberately. They used to be — IN, en-IN, INR, GST, upi-email — which meant
+  -- a print studio in Lyon installed thela and found a shop denominated in
+  -- rupees, restricted to shipping within India, calling VAT "GST", and set up
+  -- for a payment rail that does not exist in France. Every one was changeable,
+  -- so nothing was broken; but a shop needing six corrections before it can sell
+  -- is not generic, it is Indian with an escape hatch, and ADR-0017 says
+  -- otherwise.
+  --
+  -- Absent means unanswered. The setup wizard asks, and until it has, the
+  -- storefront says the shop is not open rather than guessing at somebody's
+  -- currency.
   ('shop.name',               'My Shop'),
   ('shop.legal_name',         ''),
   ('shop.address',            ''),
   ('shop.support_email',      ''),
   ('shop.support_phone',      ''),
-  ('shop.country',            'IN'),
-  ('shop.locale',             'en-IN'),
 
-  -- ISO 4217 plus its exponent. Everything monetary is an integer in minor
-  -- units; this is the only place the currency is known.
-  ('money.currency',          'INR'),
+  -- Minor units. Two decimal places is near-universal, and a shop in Japan or
+  -- Kuwait changing it is arithmetic rather than a jurisdiction.
   ('money.exponent',          '2'),
 
-  -- R2 custom domain. Serving images through the Worker instead is the single
-  -- change that turns a comfortable free tier into an overage.
   ('media.base_url',          ''),
 
-  ('payment.provider',        'upi-email'),
-  ('payment.upi_vpa',         ''),
-  ('payment.upi_payee',       ''),
-  ('payment.hold_minutes',    '60'),
-
+  -- Every shop starts able to dispatch, because `manual` needs no account
+  -- anywhere and works in every country.
   ('shipping.provider',       'manual'),
   ('shipping.origin_postal',  ''),
-  -- Empty means unrestricted. A shop restricted to one region lists it here.
+  -- Empty means unrestricted, which is right for a shop nobody has asked yet.
   ('shipping.allowed_regions', ''),
-  ('shipping.allowed_countries', 'IN'),
+  ('shipping.allowed_countries', ''),
 
-  -- Tax is a configured rule, not a hardcoded regime (ADR-0017). While
-  -- unregistered no tax line is rendered anywhere.
+  ('payment.hold_minutes',    '60'),
+
+  -- Unregistered until somebody says otherwise. No tax line renders while this
+  -- is false, so the label is never shown and never has to be guessed.
   ('tax.registered',          'false'),
-  ('tax.rate_bp',             '0'),
-  ('tax.label',               'GST'),
-  ('tax.number',              '');
+  ('tax.rate_bp',             '0');

@@ -65,12 +65,25 @@ export function priceFormatter(s: {
   locale: string;
   exponent: number;
 }): (minor: Minor) => string {
-  const fmt = new Intl.NumberFormat(s.locale, {
-    style: 'currency',
-    currency: s.currency,
-    minimumFractionDigits: s.exponent,
-    maximumFractionDigits: s.exponent,
-  });
+  // An unconfigured shop has no currency, and `Intl.NumberFormat` throws
+  // outright for `style: 'currency'` without one. Falling back to bare digits
+  // keeps an admin page renderable while somebody is still setting the shop up
+  // — the storefront refuses to trade at all in that state, so a number with no
+  // symbol is never shown to a customer.
+  const locale = s.locale || undefined;
+
+  const fmt = s.currency
+    ? new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: s.currency,
+        minimumFractionDigits: s.exponent,
+        maximumFractionDigits: s.exponent,
+      })
+    : new Intl.NumberFormat(locale, {
+        minimumFractionDigits: s.exponent,
+        maximumFractionDigits: s.exponent,
+      });
+
   return (minor) => fmt.format(minor / 10 ** s.exponent);
 }
 

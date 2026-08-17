@@ -63,10 +63,12 @@ const DEFAULTS: Settings = {
   address: '',
   supportEmail: '',
   supportPhone: '',
-  currency: 'INR',
+  // Empty, not Indian. Absent means "nobody has been asked yet", which the
+  // storefront can say honestly; a wrong default it cannot.
+  currency: '',
   exponent: 2,
-  locale: 'en-IN',
-  country: 'IN',
+  locale: '',
+  country: '',
   mediaBaseUrl: '',
   upiVpa: '',
   upiPayee: '',
@@ -77,7 +79,7 @@ const DEFAULTS: Settings = {
   allowedCountries: [],
   taxRegistered: false,
   taxRateBp: 0,
-  taxLabel: 'Tax',
+  taxLabel: '',
   taxNumber: '',
   themePreset: 'plain',
   themeMode: 'auto',
@@ -203,13 +205,22 @@ export function forgetSettings(): void {
 }
 
 /**
+ * Has anybody told this shop where it is and what it prices in?
+ *
+ * A shop with no currency cannot show a price, so this is the difference
+ * between "not set up yet" and "broken". The storefront asks rather than
+ * rendering an amount with no symbol and hoping nobody notices.
+ */
+export const isConfigured = (s: Settings): boolean => Boolean(s.currency && s.country);
+
+/**
  * The shop's country, spelled the way its own customers spell it — "India" for
  * an en-IN shop, "Inde" for fr-FR. `Intl.DisplayNames` is in workerd, so this
  * costs nothing and saves us shipping a country table.
  */
 export function countryName(s: Settings): string {
   try {
-    return new Intl.DisplayNames([s.locale], { type: 'region' }).of(s.country) ?? s.country;
+    return new Intl.DisplayNames([s.locale || 'en'], { type: 'region' }).of(s.country) ?? s.country;
   } catch {
     // An unknown locale or a malformed country code must not take the page down.
     return s.country;

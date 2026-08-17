@@ -45,6 +45,58 @@ const tokenRequired = Boolean(env.ADMIN_SETUP_TOKEN);
     </label>
 
     <label>
+      Shop name
+      <input name="shopName" required autocomplete="organization" />
+    </label>
+
+    <label>
+      Country
+      <span class="hint">
+        Where you sell from. Sets your address format and the tax wording.
+      </span>
+      <select name="country" required>
+        <option value="">Choose…</option>
+        <option value="IN">India</option>
+        <option value="FR">France</option>
+        <option value="GB">United Kingdom</option>
+        <option value="US">United States</option>
+        <option value="DE">Germany</option>
+        <option value="AU">Australia</option>
+        <option value="CA">Canada</option>
+        <option value="SG">Singapore</option>
+        <option value="AE">United Arab Emirates</option>
+        <option value="KE">Kenya</option>
+        <option value="NG">Nigeria</option>
+        <option value="BR">Brazil</option>
+        <option value="ZA">South Africa</option>
+      </select>
+    </label>
+
+    <label>
+      Currency
+      <span class="hint">
+        What your prices are in. This cannot be changed once you have taken an
+        order, because past orders keep the currency they were placed in.
+      </span>
+      <select name="currency" required>
+        <option value="">Choose…</option>
+        <option value="INR">INR — Indian rupee</option>
+        <option value="EUR">EUR — Euro</option>
+        <option value="GBP">GBP — Pound sterling</option>
+        <option value="USD">USD — US dollar</option>
+        <option value="AUD">AUD — Australian dollar</option>
+        <option value="CAD">CAD — Canadian dollar</option>
+        <option value="SGD">SGD — Singapore dollar</option>
+        <option value="AED">AED — UAE dirham</option>
+        <option value="KES">KES — Kenyan shilling</option>
+        <option value="NGN">NGN — Nigerian naira</option>
+        <option value="BRL">BRL — Brazilian real</option>
+        <option value="ZAR">ZAR — South African rand</option>
+        <option value="JPY">JPY — Japanese yen</option>
+      </select>
+    </label>
+
+    <label>
       Your email
       <span class="hint">
         This is how you get back in if you lose your device, so use one you will

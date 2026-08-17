@@ -143,10 +143,21 @@ describe('ensureSchema', () => {
       .first<{ status: string }>();
     expect(order?.status).toBe('awaiting_payment');
 
-    // And the settings the storefront reads on every render are seeded.
-    const setting = await db
-      .prepare(`SELECT value FROM setting WHERE key = 'money.currency'`)
+    // Seeded: only what is true of every shop on earth.
+    const provider = await db
+      .prepare(`SELECT value FROM setting WHERE key = 'shipping.provider'`)
       .first<{ value: string }>();
-    expect(setting?.value).toBe('INR');
+    expect(provider?.value, 'every shop can dispatch manually from day one').toBe('manual');
+
+    // NOT seeded: anything that would make this an Indian shop by default.
+    // A print studio in Lyon must not find itself priced in rupees because
+    // nobody asked. The setup wizard asks; the schema does not guess.
+    for (const key of ['money.currency', 'shop.country', 'shop.locale', 'tax.label']) {
+      const row = await db
+        .prepare(`SELECT value FROM setting WHERE key = ?1`)
+        .bind(key)
+        .first<{ value: string }>();
+      expect(row, `${key} must not be seeded`).toBeNull();
+    }
   });
 });

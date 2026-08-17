@@ -36,6 +36,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return bad('A name and a working email address are both needed.');
   }
 
+  // Nothing is guessed. A shop with no currency cannot price anything, and a
+  // default of INR would mean a print studio in Lyon quietly opening in rupees.
+  const shopName = String(body.shopName ?? '').trim();
+  const country = String(body.country ?? '').trim().toUpperCase();
+  const currency = String(body.currency ?? '').trim().toUpperCase();
+
+  if (!shopName) return bad('Your shop needs a name.');
+  if (!/^[A-Z]{2}$/.test(country)) return bad('Choose the country you sell from.');
+  if (!/^[A-Z]{3}$/.test(currency)) return bad('Choose the currency your prices are in.');
+
   if (!env.SESSION_SECRET) {
     return bad(
       'This shop has no SESSION_SECRET set, so it cannot sign you in. ' +
@@ -50,6 +60,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   await issueChallenge(cookies, env.SESSION_SECRET, challenge, 'register', isSecure(request), {
     email,
     name,
+    shop: { name: shopName, country, currency },
   });
 
   const { rpId } = relyingParty(request);

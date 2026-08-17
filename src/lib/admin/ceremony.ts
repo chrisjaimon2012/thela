@@ -46,6 +46,9 @@ async function register(form) {
     token: form.token?.value,
     email: form.email?.value,
     name: form.name?.value,
+    shopName: form.shopName?.value,
+    country: form.country?.value,
+    currency: form.currency?.value,
   });
 
   const created = await navigator.credentials.create({

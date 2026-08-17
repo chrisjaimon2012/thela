@@ -177,6 +177,8 @@ interface ChallengePayload {
    */
   email?: string;
   name?: string;
+  /** Answered at `start`, applied at `finish`. See the note above. */
+  shop?: { name: string; country: string; currency: string };
 }
 
 /**
@@ -193,7 +195,12 @@ export async function issueChallenge(
   challenge: string,
   purpose: ChallengePayload['purpose'],
   secure: boolean,
-  carry: { uid?: string; email?: string; name?: string } = {},
+  carry: {
+    uid?: string;
+    email?: string;
+    name?: string;
+    shop?: { name: string; country: string; currency: string };
+  } = {},
 ): Promise<void> {
   cookies.set(
     CHALLENGE_COOKIE,
