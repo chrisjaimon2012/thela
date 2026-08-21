@@ -1,0 +1,120 @@
+---
+import Admin from '../../layouts/Admin.astro';
+import { listPeople } from '../../lib/admin/people';
+import { can } from '../../lib/admin/staff';
+import { env } from 'cloudflare:workers';
+
+const admin = Astro.locals.admin!;
+const mayManage = can(admin, 'people');
+const people = await listPeople(env.DB);
+
+const done = Astro.url.searchParams.get('done');
+const problem = Astro.url.searchParams.get('e');
+
+const accessOn = Boolean(env.ACCESS_TEAM_DOMAIN && env.ACCESS_POLICY_AUD);
+---
+
+<Admin title="People" intro="Who can get into this shop, and what they can do.">
+  {done && <div class="note">{decodeURIComponent(done)}</div>}
+  {problem && <div class="note bad">{decodeURIComponent(problem)}</div>}
+
+  {!mayManage && (
+    <div class="note warn">
+      Only the shop owner can add or remove people. You can see the list.
+    </div>
+  )}
+
+  <table>
+    <thead>
+      <tr><th>Person</th><th>Can do</th><th>Signs in with</th><th></th></tr>
+    </thead>
+    <tbody>
+      {people.map((p) => (
+        <tr>
+          <td>
+            {p.name || p.email}
+            {p.name && <div class="muted small">{p.email}</div>}
+            {p.email === admin.email && <span class="pill" style="margin-left:.4rem">you</span>}
+          </td>
+          <td>
+            <span class={`pill ${p.role === 'owner' ? 'good' : ''}`}>{p.role}</span>
+            <div class="muted small">
+              {p.role === 'owner'
+                ? 'Everything, including where payments go'
+                : 'Orders, payments, dispatch, catalogue'}
+            </div>
+          </td>
+          <td class="small">
+            {p.passkeys > 0
+              ? `${p.passkeys} passkey${p.passkeys === 1 ? '' : 's'}`
+              : accessOn
+                ? 'Cloudflare Access'
+                : 'Not signed in yet'}
+            {p.lastSeen && <div class="muted small">last seen {p.lastSeen}</div>}
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            {mayManage && p.email !== admin.email && (
+              <>
+                <form method="POST" action="/admin/people/role" style="display:inline">
+                  <input type="hidden" name="id" value={p.id} />
+                  <input type="hidden" name="role" value={p.role === 'owner' ? 'staff' : 'owner'} />
+                  <button type="submit" class="quiet">
+                    Make {p.role === 'owner' ? 'staff' : 'owner'}
+                  </button>
+                </form>
+                <form method="POST" action="/admin/people/revoke" style="display:inline;margin-left:.4rem">
+                  <input type="hidden" name="id" value={p.id} />
+                  <button type="submit" class="quiet">Remove</button>
+                </form>
+              </>
+            )}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+
+  {mayManage && (
+    <>
+      <h2>Add somebody</h2>
+      <p class="muted small" style="max-width:44rem">
+        Put in their email address. They then either register their own passkey
+        against it, or {accessOn
+          ? 'sign in through Cloudflare Access with that address'
+          : 'sign in with a passkey once you have shared the address with them'}.
+        Nothing is emailed to them by thela — tell them yourself.
+      </p>
+      <form method="POST" action="/admin/people/invite"
+            style="display:flex;gap:.6rem;align-items:flex-end;max-width:34rem;margin-top:.75rem">
+        <label style="flex:1;margin:0">
+          Email address
+          <input name="email" type="email" required autocomplete="off" />
+        </label>
+        <label style="margin:0;width:9rem">
+          Can do
+          <select name="role">
+            <option value="staff">Run the shop</option>
+            <option value="owner">Everything</option>
+          </select>
+        </label>
+        <button type="submit">Add</button>
+      </form>
+    </>
+  )}
+
+  <h2>How people sign in</h2>
+  {accessOn ? (
+    <p class="muted small" style="max-width:44rem">
+      This shop uses <strong>Cloudflare Access</strong>. Access decides who
+      reaches the admin at all; the list above decides what they can do once
+      they are here. Somebody removed from either is out — that is deliberate.
+    </p>
+  ) : (
+    <p class="muted small" style="max-width:44rem">
+      This shop uses <strong>passkeys</strong>, which needs no setup and suits
+      one or two people. For a shop with several staff who come and go,
+      Cloudflare Access gives you single sign-on and one place to cut somebody
+      off. It needs a custom domain — see <code>docs/staff-access.md</code>.
+    </p>
+  )}
+</Admin>
