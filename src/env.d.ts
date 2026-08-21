@@ -36,6 +36,16 @@ declare namespace Cloudflare {
     UTR_LIMIT: RateLimit;
 
     SHOP_ENV: string;
+
+    /**
+     * Cloudflare Access, both required together or Access is ignored entirely.
+     * `ACCESS_TEAM_DOMAIN` is https://<team>.cloudflareaccess.com;
+     * `ACCESS_POLICY_AUD` is the application's AUD tag. Pinning the audience
+     * stops a token minted for another application in the same Zero Trust
+     * organisation being replayed here.
+     */
+    ACCESS_TEAM_DOMAIN?: string;
+    ACCESS_POLICY_AUD?: string;
     /** Address the merchant's bank sends credit alerts to. */
     BANK_ALERT_ADDRESS: string;
     /** Where the Email Worker forwards a copy, so the account holder keeps sight of their own mail. */

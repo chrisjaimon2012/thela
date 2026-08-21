@@ -54,6 +54,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     context.cookies,
     context.request,
     env.SESSION_SECRET,
+    // Absent means Access is not in use, and every Access header is then
+    // ignored outright. A shop that has never heard of Zero Trust cannot be
+    // attacked through a feature it does not use.
+    { teamDomain: env.ACCESS_TEAM_DOMAIN, policyAud: env.ACCESS_POLICY_AUD },
   );
 
   // First run. Until somebody claims this shop there is no session to have, so

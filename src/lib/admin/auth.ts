@@ -17,6 +17,7 @@
  */
 
 import type { AstroCookies } from 'astro';
+import { verifyAccess, type AccessConfig } from './access';
 import { fromB64url, toB64url } from './webauthn';
 
 export const SESSION_COOKIE = 'thela_admin';
@@ -141,10 +142,21 @@ export async function currentAdmin(
   cookies: AstroCookies,
   request: Request,
   secret: string | undefined,
+  access: AccessConfig = {},
 ): Promise<Admin | null> {
-  const accessEmail = request.headers.get('cf-access-authenticated-user-email');
-  if (accessEmail) {
-    const user = await userByEmail(db, accessEmail);
+  // The SIGNED token, never the plain header.
+  //
+  // `Cf-Access-Authenticated-User-Email` is set by Access on requests that pass
+  // through it — and by anybody at all on requests that do not. The Worker is
+  // reachable at its workers.dev address and at every route bound to it, so
+  // trusting that header made forging one an administrator, with the power to
+  // change the payee and redirect every future payment. Cloudflare's own
+  // documentation is explicit: "Validation of the header alone is not
+  // sufficient — the JWT and signature must be confirmed to avoid identity
+  // spoofing."
+  const identity = await verifyAccess(request, access);
+  if (identity) {
+    const user = await userByEmail(db, identity.email);
     // A verified Access identity that is not an admin here is not an error —
     // it is somebody in the organisation who has no business in this shop.
     return user ? { ...user, via: 'access' } : null;
