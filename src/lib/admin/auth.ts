@@ -137,13 +137,28 @@ export function endSession(cookies: AstroCookies): void {
  * authenticated this request there is nothing for us to verify and no reason to
  * spend CPU doing it again.
  */
+/**
+ * The outcome of asking who is making this request.
+ *
+ * A record rather than `Admin | null` because "Access verified you and you are
+ * not an admin here" needs a different page from "nobody is signed in", and
+ * the difference cannot be carried in module state: requests interleave at
+ * every await inside one isolate, so a module-scoped variable would be read by
+ * whichever request happened to resume next.
+ */
+export interface Identification {
+  admin: Admin | null;
+  /** Verified by Access, but not an admin of this shop. */
+  stranger: string | null;
+}
+
 export async function currentAdmin(
   db: D1Database,
   cookies: AstroCookies,
   request: Request,
   secret: string | undefined,
   access: AccessConfig = {},
-): Promise<Admin | null> {
+): Promise<Identification> {
   // The SIGNED token, never the plain header.
   //
   // `Cf-Access-Authenticated-User-Email` is set by Access on requests that pass
@@ -157,19 +172,23 @@ export async function currentAdmin(
   const identity = await verifyAccess(request, access);
   if (identity) {
     const user = await userByEmail(db, identity.email);
-    // A verified Access identity that is not an admin here is not an error —
-    // it is somebody in the organisation who has no business in this shop.
-    return user ? { ...user, via: 'access' } : null;
+    if (user) return { admin: { ...user, via: 'access' }, stranger: null };
+
+    // Verified by Access, but not an admin of THIS shop. Bouncing them to a
+    // passkey form they can never satisfy is a dead end, so say so instead.
+    return { admin: null, stranger: identity.email };
   }
 
-  if (!secret) return null;
+  if (!secret) return none;
 
   const session = await open<SessionPayload>(cookies.get(SESSION_COOKIE)?.value, secret);
-  if (!session) return null;
+  if (!session) return none;
 
   const user = await userById(db, session.uid);
-  return user ? { ...user, via: session.via } : null;
+  return user ? { admin: { ...user, via: session.via }, stranger: null } : none;
 }
+
+const none: Identification = { admin: null, stranger: null };
 
 // ---------------------------------------------------------------------------
 // Ceremony challenges

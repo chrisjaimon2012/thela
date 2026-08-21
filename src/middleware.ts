@@ -49,7 +49,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   if (!path.startsWith('/admin')) return next();
 
-  context.locals.admin = await currentAdmin(
+  const who = await currentAdmin(
     env.DB,
     context.cookies,
     context.request,
@@ -59,6 +59,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     // attacked through a feature it does not use.
     { teamDomain: env.ACCESS_TEAM_DOMAIN, policyAud: env.ACCESS_POLICY_AUD },
   );
+  context.locals.admin = who.admin;
 
   // First run. Until somebody claims this shop there is no session to have, so
   // /admin/setup is the only door — and everything else redirects to it rather
@@ -66,6 +67,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (await isUnclaimed(env.DB)) {
     const isSetup = path.startsWith('/admin/setup') || path.startsWith('/admin/api/register/');
     return isSetup ? next() : context.redirect('/admin/setup', 303);
+  }
+
+  // Access let them through the door and they are not an admin here. Telling
+  // them so is the only useful answer — a login form is one they cannot satisfy,
+  // and a bare 403 leaves them guessing which of their identities is wrong.
+  if (who.stranger) {
+    return new Response(
+      `Signed in as ${who.stranger}, which is not an administrator of this shop.\n\n` +
+        `Ask the shop owner to add this address, or sign in to Cloudflare Access ` +
+        `with the account that is.`,
+      { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+    );
   }
 
   if (context.locals.admin || PUBLIC_ADMIN.test(path)) return next();
